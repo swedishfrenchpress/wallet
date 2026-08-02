@@ -2,6 +2,11 @@ import SwiftUI
 import CoreNFC
 
 struct SendView: View {
+    /// Set when this flow is swapped into the home sheet from Send's method
+    /// row: the input face shows a back chevron to return there. X/swipe
+    /// always abandons to the wallet (dismissal contract).
+    var onBack: (() -> Void)? = nil
+
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var walletManager: WalletManager
     @ObservedObject private var settings = SettingsManager.shared
@@ -82,11 +87,25 @@ struct SendView: View {
             // over the black canvas, no secondary gray strip.
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
-                // Explicit close in every state — the sheet drag indicator is
-                // unreliable and the fullScreenCover send path has no swipe
-                // dismiss at all, which stranded users on "Pending Ecash".
+                // Input face: chevron back to Send when swapped in from its
+                // method row, else an explicit close. Generated face keeps the
+                // close — dismissal from anywhere lands on the wallet.
                 ToolbarItem(placement: .topBarLeading) {
-                    SheetCloseButton()
+                    if generatedToken == nil, let onBack {
+                        Button {
+                            HapticFeedback.selection()
+                            onBack()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .toolbarIconTapTarget()
+                        }
+                        .accessibilityLabel("Back")
+                        .accessibilityHint("Returns to Send")
+                        .disabled(isGenerating)
+                    } else {
+                        SheetCloseButton()
+                            .disabled(isGenerating)
+                    }
                 }
 
                 if generatedToken == nil {
@@ -172,6 +191,9 @@ struct SendView: View {
                 await loadUnitBalance()
             }
         }
+        // A stray swipe must not tear down the flow while proofs are being
+        // swapped into the locked/pending token.
+        .interactiveDismissDisabled(isGenerating)
     }
 
     // MARK: - Send Input View
@@ -1206,6 +1228,12 @@ struct UnifiedSendView: View {
     let onAddCustomMint: () -> Void
     /// Start the NFC tap-to-pay session (dismisses this sheet first).
     let onContactless: () -> Void
+    /// A pasted bearer *token* is a receive: hand it to the shell for the
+    /// full-screen claim page — this sheet closes first, so the claim page's
+    /// X lands on the wallet, never back on this input.
+    let onOpenReceiveToken: (String) -> Void
+    /// Swap the sheet content to the Create-Ecash flow.
+    let onSendEcash: () -> Void
 
     @EnvironmentObject var walletManager: WalletManager
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1309,8 +1337,7 @@ struct UnifiedSendView: View {
         }
     }
 
-    // Routes that genuinely leave this flow + scanner / mint picker / empty state
-    @State private var route: SendRoute?
+    // Scanner / mint picker / empty state
     @State private var showingScanner = false
     @State private var showingMintPicker = false
     @State private var addMintError: String?
@@ -1335,19 +1362,6 @@ struct UnifiedSendView: View {
 
     /// Resolved fee for the current creq mint + amount.
     private enum FeeState: Equatable { case idle, loading, free, amount(UInt64), unavailable }
-
-    /// The two destinations that leave the Send flow entirely (presented full-screen,
-    /// each keeping its own NavigationStack).
-    private enum SendRoute: Identifiable {
-        case receiveToken(String)
-        case ecash
-        var id: String {
-            switch self {
-            case .receiveToken(let token): return "token-\(token.prefix(48))"
-            case .ecash: return "ecash"
-            }
-        }
-    }
 
     // MARK: Body
 
@@ -1400,6 +1414,16 @@ struct UnifiedSendView: View {
             .animation(.smooth(duration: 0.3), value: locked != nil)
             .navigationTitle("Send")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    // Explicit "back to wallet" affordance (sibling-surface
+                    // parity); hidden during the irreversible execution window,
+                    // when dismissal is locked entirely.
+                    if step != .sending {
+                        SheetCloseButton { onClose() }
+                    }
+                }
+            }
             .sheet(isPresented: $showingScanner) {
                 ScannerWrapperView(onScanned: handleScannedDestination)
                     .environmentObject(walletManager)
@@ -1414,7 +1438,6 @@ struct UnifiedSendView: View {
                 .environmentObject(walletManager)
                 .canvasSheetBackground()
             }
-            .fullScreenCover(item: $route) { routeView($0).canvasSheetBackground() }
             .onChange(of: destination) { handleDestinationChange() }
             .onChange(of: entryUnit) { oldUnit, newUnit in
                 amountString = AmountFormatter.entryConverted(raw: amountString, from: oldUnit, to: newUnit)
@@ -1436,6 +1459,8 @@ struct UnifiedSendView: View {
         // input, `.large` + flat canvas for amount/confirm/status.
         .presentationDetents(prefersCompactSheet ? [.height(compactDetentHeight)] : [.large])
         .presentationDragIndicator(.visible)
+        // A stray swipe must not tear down the flow while the melt is executing.
+        .interactiveDismissDisabled(step == .sending)
         .modifier(UnifiedSendSheetBackground(compact: prefersCompactSheet))
     }
 
@@ -1494,7 +1519,7 @@ struct UnifiedSendView: View {
             sendMethodButton(icon: "banknote", label: "Ecash",
                              a11y: "Create ecash") {
                 HapticFeedback.selection()
-                route = .ecash
+                onSendEcash()
             }
 
             if NFCNDEFReaderSession.readingAvailable {
@@ -1707,7 +1732,7 @@ struct UnifiedSendView: View {
         case .unrecognized:
             if let token = TokenParser.normalizedToken(from: raw) {
                 HapticFeedback.selection()
-                route = .receiveToken(token)
+                onOpenReceiveToken(token)
             } else {
                 inputHint = "Unrecognized — try a Lightning address, invoice, Bitcoin address, or Cashu Request"
             }
@@ -2768,21 +2793,6 @@ struct UnifiedSendView: View {
         advanceNow(raw: trimmed)
     }
 
-    @ViewBuilder
-    private func routeView(_ route: SendRoute) -> some View {
-        switch route {
-        case .receiveToken(let token):
-            ReceiveTokenDetailView(
-                tokenString: token,
-                onComplete: { self.route = nil; onClose() }
-            )
-            .environmentObject(walletManager)
-        case .ecash:
-            SendView()
-                .environmentObject(walletManager)
-        }
-    }
-
     // MARK: Empty states (reproduced from the old send chooser)
 
     private var noMintsState: some View {
@@ -3028,7 +3038,12 @@ struct MeltView: View {
             .navigationTitle(screenTitle)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    SheetCloseButton()
+                    // Hidden during the irreversible execution window — the
+                    // NFC path presents this as a swipeable sheet, so the
+                    // interactive-dismiss lock below needs a matching X gate.
+                    if !isPaying {
+                        SheetCloseButton()
+                    }
                 }
             }
             .sheet(isPresented: $showingScanner) {
@@ -3088,6 +3103,9 @@ struct MeltView: View {
                 amountString = AmountFormatter.entryConverted(raw: amountString, from: oldUnit, to: newUnit)
             }
         }
+        // A stray swipe must not tear down the flow mid-melt (sheet
+        // presentations only; covers have no interactive dismiss).
+        .interactiveDismissDisabled(isPaying)
     }
 
     private var supportsOnchainMelt: Bool {
