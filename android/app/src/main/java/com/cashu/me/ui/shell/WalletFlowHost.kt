@@ -22,52 +22,55 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
+import com.cashu.me.ui.navigation.TopTab
 
 /**
  * The money flows presented over the shell (iOS `WalletFlow` sheets).
  * These are native M3 modal bottom sheets, not pushed destinations:
- * Receive Ecash wraps its content (≈ iOS `.medium` detent), the others
- * fill the sheet (≈ iOS `.large`).
+ * Receive Ecash and Contactless wrap their content (≈ iOS `.medium` detent),
+ * the others fill the sheet (≈ iOS `.large`).
  */
 sealed interface WalletFlow {
     data object ReceiveEcash : WalletFlow
     data object ReceiveLightning : WalletFlow
     data object Send : WalletFlow
     data object SendEcash : WalletFlow
+    data object Contactless : WalletFlow
 }
 
 /**
- * Defers activity-window overlays until the modal sheet's hide animation has
- * completed. Starting an overlay while the sheet is still composed lets a fast
- * result route back into the outgoing flow before [onDismissed] clears it.
+ * A transition from the open flow sheet to a *different* surface.
+ *
+ * Two-tier rule: swapping content between flows assigns `activeFlow` directly
+ * (the sheet stays up and AnimatedContent cross-fades); moving to any other
+ * surface — camera overlay, full-screen claim page, a pushed route or tab —
+ * parks the destination here so the sheet's hide animation completes before
+ * the new surface mounts. Camera overlays render in the activity window,
+ * underneath the sheet's dialog window, and a page mounted under a
+ * still-dismissing sheet plays two animations at once.
+ */
+internal sealed interface FlowHandoffDestination {
+    data class Scanner(val target: ScannerTarget) : FlowHandoffDestination
+    data class ReceiveDetail(val token: String) : FlowHandoffDestination
+    data class NavRoute(val route: String) : FlowHandoffDestination
+    data class NavTab(val tab: TopTab) : FlowHandoffDestination
+}
+
+/**
+ * Defers a [FlowHandoffDestination] until the modal sheet's hide animation has
+ * completed. Consume-once; a second [request] before dismissal replaces the
+ * first (last wins).
  */
 internal class WalletFlowHandoffCoordinator {
-    private var pending: Destination? = null
+    private var pending: FlowHandoffDestination? = null
 
-    fun requestScanner(close: () -> Unit) {
-        pending = Destination.Scanner
+    fun request(destination: FlowHandoffDestination, close: () -> Unit) {
+        pending = destination
         close()
     }
 
-    fun requestContactless(close: () -> Unit) {
-        pending = Destination.Contactless
-        close()
-    }
-
-    fun completeDismissal(
-        openScanner: () -> Unit,
-        openContactless: () -> Unit,
-    ) {
-        when (pending.also { pending = null }) {
-            Destination.Scanner -> openScanner()
-            Destination.Contactless -> openContactless()
-            null -> Unit
-        }
-    }
-
-    private enum class Destination {
-        Scanner,
-        Contactless,
+    fun completeDismissal(dispatch: (FlowHandoffDestination) -> Unit) {
+        pending.also { pending = null }?.let(dispatch)
     }
 }
 

@@ -56,7 +56,8 @@ import com.cashu.me.Core.PaymentRequestDecodeResult
 import com.cashu.me.Core.PaymentRequestDecoder
 import com.cashu.me.Core.TokenParser
 import com.cashu.me.Views.Components.ScannerView
-import com.cashu.me.Views.Send.ContactlessPaySheet
+import com.cashu.me.Views.Components.ScannerDefaultPrompt
+import com.cashu.me.Views.Send.ContactlessPayView
 import com.cashu.me.ui.onboarding.OnboardingScreen
 import com.cashu.me.ui.navigation.Routes
 import com.cashu.me.ui.navigation.TopTab
@@ -66,8 +67,11 @@ import com.cashu.me.ui.navigation.shellBackAction
 import com.cashu.me.ui.receive.ReceiveEcashDetailScreen
 import com.cashu.me.ui.receive.ReceiveEcashScreen
 import com.cashu.me.ui.receive.ReceiveLightningScreen
+import com.cashu.me.ui.send.LockEcashCopy
+import com.cashu.me.ui.send.SendEcashDraft
 import com.cashu.me.ui.send.SendEcashScreen
 import com.cashu.me.ui.send.UnifiedSendScreen
+import com.cashu.me.ui.send.rememberP2pkScannerQuickActions
 import com.cashu.me.ui.security.AppLockGate
 import com.cashu.me.ui.security.PrivacyCover
 import com.cashu.me.ui.security.SecureWindowEffect
@@ -261,15 +265,17 @@ private fun AuthenticatedShell(container: AppContainer) {
     val navController = rememberNavController()
     val walletState by container.walletManager.state.collectAsState()
     val isRuntimeReadyRef by rememberUpdatedState(walletState.isRuntimeReady)
-    var showContactless by remember { mutableStateOf(false) }
     var scannerTarget by remember { mutableStateOf<ScannerTarget?>(null) }
     // The active money flow, hosted in a modal bottom sheet (iOS WalletFlow sheets).
     var activeFlow by remember { mutableStateOf<WalletFlow?>(null) }
     var flowDismissLocked by remember { mutableStateOf(false) }
     val flowHandoff = remember { WalletFlowHandoffCoordinator() }
-    var pendingReceiveScan by remember { mutableStateOf<String?>(null) }
     var pendingSendScan by remember { mutableStateOf<String?>(null) }
     var pendingMintScan by remember { mutableStateOf<String?>(null) }
+    // P2PK key scanned for Send Ecash's lock, plus the entry state parked while
+    // the sheet yields to the camera — both restored when the flow reopens.
+    var pendingP2pkScan by remember { mutableStateOf<String?>(null) }
+    var sendEcashDraft by remember { mutableStateOf<SendEcashDraft?>(null) }
     // Full-screen "Receive Ecash" page (iOS ReceiveTokenDetailView via
     // .fullScreenCover): every token that arrives from *outside* the paste
     // flow — scanner, cashu: deep link, token pasted into Send — lands here.
@@ -285,7 +291,6 @@ private fun AuthenticatedShell(container: AppContainer) {
         if (!walletState.isRuntimeReady) {
             activeFlow = null
             receiveTokenDetail = null
-            showContactless = false
         }
     }
 
@@ -309,29 +314,46 @@ private fun AuthenticatedShell(container: AppContainer) {
         receiveTokenDetail,
         activeFlow,
         scannerTarget,
-        showContactless,
         appLockState.isLocked,
         walletState.isRuntimeReady,
     ) {
         val held = cashuRequestListenerState.heldForApproval ?: return@LaunchedEffect
-        val canPresent = walletState.isRuntimeReady &&
-            receiveTokenDetail == null &&
-            activeFlow == null &&
-            scannerTarget == null &&
-            !showContactless &&
-            !appLockState.isLocked
+        val canPresent = shellIsIdleForInterrupt(
+            isRuntimeReady = walletState.isRuntimeReady,
+            receiveDetailVisible = receiveTokenDetail != null,
+            flowActive = activeFlow != null,
+            scannerVisible = scannerTarget != null,
+            locked = appLockState.isLocked,
+        )
         if (canPresent) {
             receiveTokenDetail = held.token
             container.cashuRequestListener.dismissHeldPayment()
         }
     }
 
-    LaunchedEffect(pendingDeepLink, walletState.isRuntimeReady) {
+    LaunchedEffect(
+        pendingDeepLink,
+        walletState.isRuntimeReady,
+        activeFlow,
+        scannerTarget,
+        receiveTokenDetail,
+        appLockState.isLocked,
+    ) {
         val deepLink = pendingDeepLink ?: return@LaunchedEffect
-        // Keep payment deep links pending until the encrypted seed and CDK
-        // repository are available. Non-payment destinations can open normally.
-        if (!walletState.isRuntimeReady && deepLink.route in paymentRoutes) {
-            return@LaunchedEffect
+        // Payment deep links stay pending until the shell is idle (an
+        // unprompted surface must never stack on — or replace — a story in
+        // progress) and the encrypted seed and CDK repository are available.
+        // The idle keys above re-run this effect when the user finishes or
+        // dismisses whatever is open. Non-payment destinations open normally.
+        if (deepLink.route in paymentRoutes) {
+            val idle = shellIsIdleForInterrupt(
+                isRuntimeReady = walletState.isRuntimeReady,
+                receiveDetailVisible = receiveTokenDetail != null,
+                flowActive = activeFlow != null,
+                scannerVisible = scannerTarget != null,
+                locked = appLockState.isLocked,
+            )
+            if (!idle) return@LaunchedEffect
         }
         when (deepLink.route) {
             CashuRoute.Receive -> {
@@ -357,7 +379,7 @@ private fun AuthenticatedShell(container: AppContainer) {
             CashuRoute.History -> navController.navigateToTab(TopTab.History)
             CashuRoute.Settings -> navController.navigate(Routes.SETTINGS)
             CashuRoute.Scanner -> scannerTarget = ScannerTarget.Auto
-            CashuRoute.Contactless -> if (isRuntimeReadyRef) showContactless = true
+            CashuRoute.Contactless -> openPaymentFlow(WalletFlow.Contactless)
         }
         container.navigationManager.consumeDeepLink()
     }
@@ -367,6 +389,15 @@ private fun AuthenticatedShell(container: AppContainer) {
     // instead of replacing it with a one-frame cut.
     var lastScannerTarget by remember { mutableStateOf(ScannerTarget.Auto) }
     if (activeScannerTarget != null) lastScannerTarget = activeScannerTarget
+
+    // Canceling a P2PK key scan returns to the Send Ecash sheet it yielded
+    // from (the parked draft restores the entry state); anything else lands
+    // back on whatever screen is beneath.
+    val closeScanner: () -> Unit = {
+        val target = scannerTarget
+        scannerTarget = null
+        if (target == ScannerTarget.P2pkLock) openPaymentFlow(WalletFlow.SendEcash)
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         WalletScaffold(
@@ -388,23 +419,31 @@ private fun AuthenticatedShell(container: AppContainer) {
             enter = overlayEnter,
             exit = overlayExit,
         ) {
+            val scanningP2pkKey = lastScannerTarget == ScannerTarget.P2pkLock
+            // Key shortcuts ("Lock to my key" / "Paste key") stay colocated
+            // with the Send Ecash flow; a selected key takes the same return
+            // path as a scanned one.
+            val p2pkQuickActions = rememberP2pkScannerQuickActions(
+                settingsManager = container.settingsManager,
+                onSelectKey = { key ->
+                    scannerTarget = null
+                    if (isRuntimeReadyRef) {
+                        pendingP2pkScan = key
+                        openPaymentFlow(WalletFlow.SendEcash)
+                    }
+                },
+            )
             ScannerView(
-                onClose = { scannerTarget = null },
+                onClose = closeScanner,
                 useDeterministicPermission =
                     container.runtimePolicy.useDeterministicCameraPermission,
+                promptText = if (scanningP2pkKey) LockEcashCopy.ScanPrompt else ScannerDefaultPrompt,
+                quickActions = if (scanningP2pkKey) p2pkQuickActions else emptyList(),
                 onScanned = { payload ->
                     scannerTarget = null
                     routeScannedPayload(
                         target = lastScannerTarget,
                         payload = payload,
-                        // In-sheet scan (ScannerTarget.Receive): back to the
-                        // sheet's Review face — the user is inside the paste flow.
-                        onReceiveInSheet = {
-                            if (isRuntimeReadyRef) {
-                                pendingReceiveScan = it
-                                openPaymentFlow(WalletFlow.ReceiveEcash)
-                            }
-                        },
                         // Main scan button: tokens read as a brand-new full
                         // screen, never the home sheet (iOS scanner parity).
                         onReceiveDetail = openReceiveDetail,
@@ -417,6 +456,15 @@ private fun AuthenticatedShell(container: AppContainer) {
                         onMint = {
                             pendingMintScan = it
                             navController.navigateToTab(TopTab.Mints)
+                        },
+                        // A key scanned for the ecash lock reopens Send Ecash;
+                        // the sheet judges validity on return (its single
+                        // validation path for every key intake).
+                        onP2pkKey = {
+                            if (isRuntimeReadyRef) {
+                                pendingP2pkScan = it
+                                openPaymentFlow(WalletFlow.SendEcash)
+                            }
                         },
                     )
                 },
@@ -462,7 +510,7 @@ private fun AuthenticatedShell(container: AppContainer) {
                     // Never abandon a redeem in flight.
                     if (!receiveDetailDismissLocked) receiveTokenDetail = null
                 }
-                com.cashu.me.ui.navigation.ShellBackAction.CloseScanner -> scannerTarget = null
+                com.cashu.me.ui.navigation.ShellBackAction.CloseScanner -> closeScanner()
                 null -> Unit
             }
         }
@@ -481,12 +529,14 @@ private fun AuthenticatedShell(container: AppContainer) {
         dismissLocked = flowDismissLocked,
         onDismissed = {
             activeFlow = null
-            flowHandoff.completeDismissal(
-                openScanner = { scannerTarget = ScannerTarget.Auto },
-                openContactless = {
-                    if (isRuntimeReadyRef) showContactless = true
-                },
-            )
+            flowHandoff.completeDismissal { destination ->
+                when (destination) {
+                    is FlowHandoffDestination.Scanner -> scannerTarget = destination.target
+                    is FlowHandoffDestination.ReceiveDetail -> openReceiveDetail(destination.token)
+                    is FlowHandoffDestination.NavRoute -> navController.navigate(destination.route)
+                    is FlowHandoffDestination.NavTab -> navController.navigateToTab(destination.tab)
+                }
+            }
         },
         snackbarHostState = container.snackbarHostState,
     ) { flow, close ->
@@ -497,21 +547,23 @@ private fun AuthenticatedShell(container: AppContainer) {
                 nostrService = container.nostrService,
                 cashuRequestStore = container.cashuRequestStore,
                 onOpenRequest = { id ->
-                    close()
-                    navController.navigate(cashuRequestDetailRouteFor(id))
+                    flowHandoff.request(
+                        FlowHandoffDestination.NavRoute(cashuRequestDetailRouteFor(id)),
+                        close,
+                    )
                 },
                 onClose = close,
                 // Universal scanner (Send parity): auto-routes whatever it reads.
-                // Camera overlays render in the activity window, underneath this
-                // sheet's dialog window — the sheet must yield before scanning.
                 onScan = {
-                    flowHandoff.requestScanner(close)
+                    flowHandoff.request(
+                        FlowHandoffDestination.Scanner(ScannerTarget.Auto),
+                        close,
+                    )
                 },
                 // A pasted/scanned token opens the full-screen claim page — same
                 // destination Send bounces a token to (iOS ReceiveTokenDetailView).
                 onOpenReceiveToken = { token ->
-                    close()
-                    receiveTokenDetail = token
+                    flowHandoff.request(FlowHandoffDestination.ReceiveDetail(token), close)
                 },
                 // A payable pasted into Receive is really a Send — swap the sheet
                 // content to the Send flow, pre-filled (inverse of onOpenReceiveToken).
@@ -521,8 +573,6 @@ private fun AuthenticatedShell(container: AppContainer) {
                 },
                 // Bitcoin opens the mint's Lightning / on-chain receive dialog.
                 onReceiveBitcoin = { activeFlow = WalletFlow.ReceiveLightning },
-                prefilledPayload = pendingReceiveScan,
-                onPrefilledConsumed = { pendingReceiveScan = null },
                 allowAutomaticClipboardRead = container.runtimePolicy.allowAutomaticClipboardReads,
             )
 
@@ -540,24 +590,26 @@ private fun AuthenticatedShell(container: AppContainer) {
                 priceService = container.priceService,
                 onClose = close,
                 onScan = {
-                    flowHandoff.requestScanner(close)
+                    flowHandoff.request(
+                        FlowHandoffDestination.Scanner(ScannerTarget.Auto),
+                        close,
+                    )
                 },
-                onContactless = {
-                    // Android has no system NFC sheet. Let Send finish its hide
-                    // animation before mounting the fresh Material NFC sheet.
-                    flowHandoff.requestContactless(close)
+                // Android has no system NFC sheet — the Material reader is
+                // another flow face, so Tap is a content swap, not a teardown.
+                onContactless = { activeFlow = WalletFlow.Contactless },
+                onSendEcash = {
+                    sendEcashDraft = null
+                    activeFlow = WalletFlow.SendEcash
                 },
-                onSendEcash = { activeFlow = WalletFlow.SendEcash },
                 onOpenReceiveToken = { token ->
                     // A token pasted into Send is a receive: bounce it to the
                     // full-screen claim page (iOS SendRoute.receiveToken →
                     // fullScreenCover), closing the Send sheet.
-                    close()
-                    receiveTokenDetail = token
+                    flowHandoff.request(FlowHandoffDestination.ReceiveDetail(token), close)
                 },
                 onOpenMints = {
-                    close()
-                    navController.navigateToTab(TopTab.Mints)
+                    flowHandoff.request(FlowHandoffDestination.NavTab(TopTab.Mints), close)
                 },
                 onReceive = { activeFlow = WalletFlow.ReceiveEcash },
                 prefilledPayload = pendingSendScan,
@@ -571,28 +623,43 @@ private fun AuthenticatedShell(container: AppContainer) {
                 priceService = container.priceService,
                 onBack = { activeFlow = WalletFlow.Send },
                 onClose = close,
+                // The camera renders in the activity window, underneath this
+                // sheet's dialog window — park the entry state and yield the
+                // sheet before scanning a lock key.
+                onScanP2pk = { draft ->
+                    sendEcashDraft = draft
+                    flowHandoff.request(
+                        FlowHandoffDestination.Scanner(ScannerTarget.P2pkLock),
+                        close,
+                    )
+                },
+                initialDraft = sendEcashDraft,
+                prefilledP2pkKey = pendingP2pkScan,
+                onPrefilledP2pkConsumed = { pendingP2pkScan = null },
+                onDismissLockChanged = { flowDismissLocked = it },
+            )
+
+            WalletFlow.Contactless -> ContactlessPayView(
+                walletManager = container.walletManager,
+                onLightningRequest = { invoice ->
+                    // A read bolt11 is a Send: swap the sheet content, pre-filled.
+                    pendingSendScan = invoice
+                    activeFlow = WalletFlow.Send
+                },
                 onDismissLockChanged = { flowDismissLocked = it },
             )
         }
     }
-
-    if (walletState.isRuntimeReady && showContactless) {
-        ContactlessPaySheet(
-            walletManager = container.walletManager,
-            onDismissed = { showContactless = false },
-            onLightningRequest = { invoice ->
-                showContactless = false
-                pendingSendScan = invoice
-                openPaymentFlow(WalletFlow.Send)
-            },
-        )
-    }
 }
 
+// Deep-link destinations that present a payment surface — deferred until the
+// shell is idle. Scanner belongs here: its overlay renders in the activity
+// window and would mount underneath an open sheet's dialog window.
 private val paymentRoutes = setOf(
     CashuRoute.Receive,
     CashuRoute.Send,
     CashuRoute.Contactless,
+    CashuRoute.Scanner,
 )
 
 // Camera-surface overlay motion: slide up over the shell, slide back down on close.
@@ -631,31 +698,20 @@ private fun LoadingScreen() {
     }
 }
 
-internal enum class ScannerTarget { Auto, Receive, Send, Mints }
+internal enum class ScannerTarget { Auto, P2pkLock }
 
 private fun routeScannedPayload(
     target: ScannerTarget,
     payload: String,
-    onReceiveInSheet: (String) -> Unit,
     onReceiveDetail: (String) -> Unit,
     onSend: (String) -> Unit,
     onMint: (String) -> Unit,
+    onP2pkKey: (String) -> Unit,
 ) {
     val trimmed = payload.trim()
-    when (target) {
-        ScannerTarget.Receive -> {
-            onReceiveInSheet(TokenParser.extractToken(trimmed) ?: trimmed)
-            return
-        }
-        ScannerTarget.Send -> {
-            onSend(trimmed)
-            return
-        }
-        ScannerTarget.Mints -> {
-            onMint(trimmed)
-            return
-        }
-        ScannerTarget.Auto -> Unit
+    if (target == ScannerTarget.P2pkLock) {
+        onP2pkKey(trimmed)
+        return
     }
     TokenParser.extractToken(trimmed)?.let {
         onReceiveDetail(it)
