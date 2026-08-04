@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "target": {
+    "kind": "pr",
+    "value": "PR #292",
+    "base_ref": "main",
+    "pr_number": 292
+  },
+  "revisions": {
+    "before_sha": "42277151fa2e42f68e3f503b0a4bab2ea30df30e",
+    "after_sha": "8d1d2ad6d812b71bec4171542738428295a03672"
+  },
+  "routing": {
+    "platforms": [
+      "android",
+      "ios"
+    ],
+    "skipped_platforms": []
+  },
+  "environments": [
+    {
+      "id": "android-api36-phone-light",
+      "platform": "android",
+      "stability": "stable",
+      "os_name": "Android",
+      "os_version": "16",
+      "os_build": "BE2A.250530.026.D1",
+      "device_type": "Pixel 8 emulator profile",
+      "viewport_px": "1080x2400",
+      "theme": "light",
+      "locale": "en-US",
+      "font_scale": 1.0,
+      "details": {
+        "api_level": 36,
+        "build_fingerprint": "google/sdk_gphone64_arm64/emu64a:16/BE2A.250530.026.D1/13818094:user/release-keys",
+        "security_patch": "2025-07-05",
+        "abi": "arm64-v8a",
+        "density_dpi": 420,
+        "logical_viewport_dp": "411x914"
+      }
+    },
+    {
+      "id": "android-api36-phone-dark",
+      "platform": "android",
+      "stability": "stable",
+      "os_name": "Android",
+      "os_version": "16",
+      "os_build": "BE2A.250530.026.D1",
+      "device_type": "Pixel 8 emulator profile",
+      "viewport_px": "1080x2400",
+      "theme": "dark",
+      "locale": "en-US",
+      "font_scale": 1.0,
+      "details": {
+        "api_level": 36,
+        "build_fingerprint": "google/sdk_gphone64_arm64/emu64a:16/BE2A.250530.026.D1/13818094:user/release-keys",
+        "security_patch": "2025-07-05",
+        "abi": "arm64-v8a",
+        "density_dpi": 420,
+        "logical_viewport_dp": "411x914"
+      }
+    },
+    {
+      "id": "ios-26.5-iphone17pro-light",
+      "platform": "ios",
+      "stability": "stable",
+      "os_name": "iOS",
+      "os_version": "26.5",
+      "os_build": "23F77",
+      "device_type": "iPhone 17 Pro",
+      "viewport_px": "1206x2622",
+      "theme": "light",
+      "locale": "en-US",
+      "font_scale": 1.0,
+      "details": {
+        "runtime_build": "23F77",
+        "xcode_version": "26.6",
+        "xcode_build": "17F113",
+        "viewport_points": "402x874",
+        "display_scale": 3.0,
+        "dynamic_type": "Large"
+      }
+    },
+    {
+      "id": "ios-26.5-iphone17pro-dark",
+      "platform": "ios",
+      "stability": "stable",
+      "os_name": "iOS",
+      "os_version": "26.5",
+      "os_build": "23F77",
+      "device_type": "iPhone 17 Pro",
+      "viewport_px": "1206x2622",
+      "theme": "dark",
+      "locale": "en-US",
+      "font_scale": 1.0,
+      "details": {
+        "runtime_build": "23F77",
+        "xcode_version": "26.6",
+        "xcode_build": "17F113",
+        "viewport_points": "402x874",
+        "display_scale": 3.0,
+        "dynamic_type": "Large"
+      }
+    }
+  ],
+  "builds": [
+    {
+      "id": "android-before-api36-light",
+      "platform": "android",
+      "side": "before",
+      "source_sha": "42277151fa2e42f68e3f503b0a4bab2ea30df30e",
+      "environment_id": "android-api36-phone-light",
+      "app_id": "com.cashu.me.debug",
+      "app_version": "1.0",
+      "build_number": "4",
+      "binary_name": "app-debug.apk",
+      "binary_sha256": "b628bf0283812d265e8e569efe0162f80e6cdecf54b33b7337c22b5d97dbe3c6"
+    },
+    {
+      "id": "ios-before-26.5-light",
+      "platform": "ios",
+      "side": "before",
+      "source_sha": "42277151fa2e42f68e3f503b0a4bab2ea30df30e",
+      "environment_id": "ios-26.5-iphone17pro-light",
+      "app_id": "com.cashu.me",
+      "app_version": "1.0",
+      "build_number": "1",
+      "binary_name": "CashuWallet",
+      "binary_sha256": "d31a048d5df8d7dbc04b92a2fa3b93551dd310542ed8a473ca28835c0b2fb597"
+    },
+    {
+      "id": "android-before-api36-dark",
+      "platform": "android",
+      "side": "before",
+      "source_sha": "42277151fa2e42f68e3f503b0a4bab2ea30df30e",
+      "environment_id": "android-api36-phone-dark",
+      "app_id": "com.cashu.me.debug",
+      "app_version": "1.0",
+      "build_number": "4",
+      "binary_name": "app-debug.apk",
+      "binary_sha256": "b628bf0283812d265e8e569efe0162f80e6cdecf54b33b7337c22b5d97dbe3c6"
+    },
+    {
+      "id": "ios-before-26.5-dark",
+      "platform": "ios",
+      "side": "before",
+      "source_sha": "42277151fa2e42f68e3f503b0a4bab2ea30df30e",
+      "environment_id": "ios-26.5-iphone17pro-dark",
+      "app_id": "com.cashu.me",
+      "app_version": "1.0",
+      "build_number": "1",
+      "binary_name": "CashuWallet",
+      "binary_sha256": "d31a048d5df8d7dbc04b92a2fa3b93551dd310542ed8a473ca28835c0b2fb597"
+    },
+    {
+      "id": "android-after-api36-light",
+      "platform": "android",
+      "side": "after",
+      "source_sha": "8d1d2ad6d812b71bec4171542738428295a03672",
+      "environment_id": "android-api36-phone-light",
+      "app_id": "com.cashu.me.debug",
+      "app_version": "1.0",
+      "build_number": "4",
+      "binary_name": "app-debug.apk",
+      "binary_sha256": "f6015fdc0e3b61ea6e63d4af52d8105c8b5c3a4a2bc2adbaaf65546688e1ecec"
+    },
+    {
+      "id": "ios-after-26.5-light",
+      "platform": "ios",
+      "side": "after",
+      "source_sha": "8d1d2ad6d812b71bec4171542738428295a03672",
+      "environment_id": "ios-26.5-iphone17pro-light",
+      "app_id": "com.cashu.me",
+      "app_version": "1.0",
+      "build_number": "1",
+      "binary_name": "CashuWallet",
+      "binary_sha256": "a5f437fcd42565130cbeb7f2c5cdb12ef82aa5dc4c583ae4b83020905a23f80b"
+    },
+    {
+      "id": "android-after-api36-dark",
+      "platform": "android",
+      "side": "after",
+      "source_sha": "8d1d2ad6d812b71bec4171542738428295a03672",
+      "environment_id": "android-api36-phone-dark",
+      "app_id": "com.cashu.me.debug",
+      "app_version": "1.0",
+      "build_number": "4",
+      "binary_name": "app-debug.apk",
+      "binary_sha256": "f6015fdc0e3b61ea6e63d4af52d8105c8b5c3a4a2bc2adbaaf65546688e1ecec"
+    },
+    {
+      "id": "ios-after-26.5-dark",
+      "platform": "ios",
+      "side": "after",
+      "source_sha": "8d1d2ad6d812b71bec4171542738428295a03672",
+      "environment_id": "ios-26.5-iphone17pro-dark",
+      "app_id": "com.cashu.me",
+      "app_version": "1.0",
+      "build_number": "1",
+      "binary_name": "CashuWallet",
+      "binary_sha256": "a5f437fcd42565130cbeb7f2c5cdb12ef82aa5dc4c583ae4b83020905a23f80b"
+    }
+  ],
+  "captures": [
+    {
+      "id": "android-matrix-light",
+      "platform": "android",
+      "environment_id": "android-api36-phone-light",
+      "surface": "Inline-error catalog \u2014 shared notice contract",
+      "state": "Catalog matrix page, light appearance, fixed synthetic copy",
+      "fixture": "Debug-only CatalogActivity added identically to both isolated worktrees; renders fixed synthetic copy only. No wallet, mint, seed, or balance state.",
+      "expected_change": "Before: InlineNotice paints full-strength colorScheme.error text on a derived error.copy(alpha=0.18) fill, outlined glyphs, and the mint-URL message renders as a second boxed notice under an error-tinted field. After: each fill pairs with its Material content role (errorContainer/onErrorContainer, pendingContainer/onPendingContainer), glyphs are filled, and the field-attached message moves into the M3 supportingText slot so one signal replaces two.",
+      "limitations": [
+        "Static rendering only: proves no VoiceOver/TalkBack announcement, live region behaviour, or animation."
+      ],
+      "before": {
+        "file": "android/api36/android-before-matrix-api36-411dp-light.png",
+        "build_id": "android-before-api36-light",
+        "sha256": "f167116df2b39bcc7e47d556bbcf222db1ab2dff31f7793d9c3623ac759b973a"
+      },
+      "after": {
+        "file": "android/api36/android-after-matrix-api36-411dp-light.png",
+        "build_id": "android-after-api36-light",
+        "sha256": "c385d94f19be6205d4d423f1b361b81752c0b5ee7316dffb8a2e01794ded32b9"
+      }
+    },
+    {
+      "id": "android-matrix-dark",
+      "platform": "android",
+      "environment_id": "android-api36-phone-dark",
+      "surface": "Inline-error catalog \u2014 shared notice contract",
+      "state": "Catalog matrix page, dark appearance, fixed synthetic copy",
+      "fixture": "Debug-only CatalogActivity added identically to both isolated worktrees; renders fixed synthetic copy only. No wallet, mint, seed, or balance state.",
+      "expected_change": "Before: InlineNotice paints full-strength colorScheme.error text on a derived error.copy(alpha=0.18) fill, outlined glyphs, and the mint-URL message renders as a second boxed notice under an error-tinted field. After: each fill pairs with its Material content role (errorContainer/onErrorContainer, pendingContainer/onPendingContainer), glyphs are filled, and the field-attached message moves into the M3 supportingText slot so one signal replaces two.",
+      "limitations": [
+        "Static rendering only: proves no VoiceOver/TalkBack announcement, live region behaviour, or animation."
+      ],
+      "before": {
+        "file": "android/api36/android-before-matrix-api36-411dp-dark.png",
+        "build_id": "android-before-api36-dark",
+        "sha256": "29b578136dd6e59f1f1982661493be06c68d1b7accd9cd80e5de8fc8e2ea334f"
+      },
+      "after": {
+        "file": "android/api36/android-after-matrix-api36-411dp-dark.png",
+        "build_id": "android-after-api36-dark",
+        "sha256": "c0c1a1ebbc643ede778f89cd0eff58ac611dd363b5237030d8a7910acde28f50"
+      }
+    },
+    {
+      "id": "android-variants-light",
+      "platform": "android",
+      "environment_id": "android-api36-phone-light",
+      "surface": "Inline-error catalog \u2014 hand-rolled variants",
+      "state": "Catalog variants page, light appearance, fixed synthetic copy",
+      "fixture": "Debug-only CatalogActivity added identically to both isolated worktrees; renders fixed synthetic copy only. No wallet, mint, seed, or balance state.",
+      "expected_change": "Before: V7 renders an error-tinted field plus a separate bodySmall error Text, two reds for one error, and the scanner overlay is bare themed error text with no container of its own. After: the field owns its message via supportingText and the scanner overlay is the shared InlineNotice. V8/V9/V10 are untouched controls and must render identically on both sides.",
+      "limitations": [
+        "Static rendering only: proves no VoiceOver/TalkBack announcement, live region behaviour, or animation."
+      ],
+      "before": {
+        "file": "android/api36/android-before-variants-api36-411dp-light.png",
+        "build_id": "android-before-api36-light",
+        "sha256": "a087b82802291bf3a42587049dd9a23cb7b0577dfc6560c582feab5c0cb52e90"
+      },
+      "after": {
+        "file": "android/api36/android-after-variants-api36-411dp-light.png",
+        "build_id": "android-after-api36-light",
+        "sha256": "5ccf2dc095a3fdf9f08a553b18b65c60069a71eadc2382c3c43ce8e4f25ee545"
+      }
+    },
+    {
+      "id": "android-variants-dark",
+      "platform": "android",
+      "environment_id": "android-api36-phone-dark",
+      "surface": "Inline-error catalog \u2014 hand-rolled variants",
+      "state": "Catalog variants page, dark appearance, fixed synthetic copy",
+      "fixture": "Debug-only CatalogActivity added identically to both isolated worktrees; renders fixed synthetic copy only. No wallet, mint, seed, or balance state.",
+      "expected_change": "Before: V7 renders an error-tinted field plus a separate bodySmall error Text, two reds for one error, and the scanner overlay is bare themed error text with no container of its own. After: the field owns its message via supportingText and the scanner overlay is the shared InlineNotice. V8/V9/V10 are untouched controls and must render identically on both sides.",
+      "limitations": [
+        "Static rendering only: proves no VoiceOver/TalkBack announcement, live region behaviour, or animation."
+      ],
+      "before": {
+        "file": "android/api36/android-before-variants-api36-411dp-dark.png",
+        "build_id": "android-before-api36-dark",
+        "sha256": "23d02555a275ac843f3fcabec0274b8253d8af49d1517e88c4c474f0deb337ce"
+      },
+      "after": {
+        "file": "android/api36/android-after-variants-api36-411dp-dark.png",
+        "build_id": "android-after-api36-dark",
+        "sha256": "6b0bfd22027cfbbd6027fb1e372e7c0cf35b33f50cab0062d0a1afc1dcabb63a"
+      }
+    },
+    {
+      "id": "ios-matrix-light",
+      "platform": "ios",
+      "environment_id": "ios-26.5-iphone17pro-light",
+      "surface": "Inline-error catalog \u2014 shared notice contract",
+      "state": "Catalog matrix page, light appearance, fixed synthetic copy",
+      "fixture": "Debug-only ReviewCatalogView added identically to both isolated worktrees, reached via SHOW_REVIEW_CATALOG; renders fixed synthetic copy only. No wallet, mint, seed, or balance state.",
+      "expected_change": "Before: three severities only, a tinted box for call sites that asked for one, and ErrorBannerView on a flat red tint with a Color(.separator) border. After: a fourth severity (success), the tinted variant collapses to the same containerless caption, and the banner moves to .regularMaterial with colour left on the glyph and no border.",
+      "limitations": [
+        "Static rendering only: proves no VoiceOver/TalkBack announcement, live region behaviour, or animation."
+      ],
+      "before": {
+        "file": "ios/ios26.5/ios-before-matrix-ios26.5-iphone17pro-light.png",
+        "build_id": "ios-before-26.5-light",
+        "sha256": "8f77057a983992f437188cc7d6dfddf7dd8d0e80d5034bd39e447aba740000e9"
+      },
+      "after": {
+        "file": "ios/ios26.5/ios-after-matrix-ios26.5-iphone17pro-light.png",
+        "build_id": "ios-after-26.5-light",
+        "sha256": "65eb3d38571871000a773fc8b6730dd7ae22a9bb51152c2786e2669be4fdcceb"
+      }
+    },
+    {
+      "id": "ios-matrix-dark",
+      "platform": "ios",
+      "environment_id": "ios-26.5-iphone17pro-dark",
+      "surface": "Inline-error catalog \u2014 shared notice contract",
+      "state": "Catalog matrix page, dark appearance, fixed synthetic copy",
+      "fixture": "Debug-only ReviewCatalogView added identically to both isolated worktrees, reached via SHOW_REVIEW_CATALOG; renders fixed synthetic copy only. No wallet, mint, seed, or balance state.",
+      "expected_change": "Before: three severities only, a tinted box for call sites that asked for one, and ErrorBannerView on a flat red tint with a Color(.separator) border. After: a fourth severity (success), the tinted variant collapses to the same containerless caption, and the banner moves to .regularMaterial with colour left on the glyph and no border.",
+      "limitations": [
+        "Static rendering only: proves no VoiceOver/TalkBack announcement, live region behaviour, or animation."
+      ],
+      "before": {
+        "file": "ios/ios26.5/ios-before-matrix-ios26.5-iphone17pro-dark.png",
+        "build_id": "ios-before-26.5-dark",
+        "sha256": "567f205888f9a89a49ff038002a6614fb0e987b4e979ecebd826598522855461"
+      },
+      "after": {
+        "file": "ios/ios26.5/ios-after-matrix-ios26.5-iphone17pro-dark.png",
+        "build_id": "ios-after-26.5-dark",
+        "sha256": "e09c03e7d070c10ec69912c405318ab8d412dcfce6f0937ab0cd4c5c4e95d49c"
+      }
+    },
+    {
+      "id": "ios-variants-light",
+      "platform": "ios",
+      "environment_id": "ios-26.5-iphone17pro-light",
+      "surface": "Inline-error catalog \u2014 hand-rolled variants",
+      "state": "Catalog variants page, light appearance, fixed synthetic copy",
+      "fixture": "Debug-only ReviewCatalogView added identically to both isolated worktrees, reached via SHOW_REVIEW_CATALOG; renders fixed synthetic copy only. No wallet, mint, seed, or balance state.",
+      "expected_change": "Before: H1 is a hand-rolled tinted copy of InlineNotice, H2 pairs Color.red with the unfilled caution circle, H4 is a solid red slab at radius 10, and only three severity glyphs exist. After: H1 delegates to InlineNotice, H2 uses the semantic token and the error glyph, H4 *is* ErrorBannerView rather than a copy of its body, and a success glyph appears.",
+      "limitations": [
+        "Static rendering only: proves no VoiceOver/TalkBack announcement, live region behaviour, or animation."
+      ],
+      "before": {
+        "file": "ios/ios26.5/ios-before-variants-ios26.5-iphone17pro-light.png",
+        "build_id": "ios-before-26.5-light",
+        "sha256": "f25c7f9793e25273a99c63f0808a4ff04e962f215baab66e62ba994a50e1d9ff"
+      },
+      "after": {
+        "file": "ios/ios26.5/ios-after-variants-ios26.5-iphone17pro-light.png",
+        "build_id": "ios-after-26.5-light",
+        "sha256": "c9e60a2dea8552759b03ce24a90e930b68beb7f080e12cc216aea5ee57e7d3e4"
+      }
+    },
+    {
+      "id": "ios-variants-dark",
+      "platform": "ios",
+      "environment_id": "ios-26.5-iphone17pro-dark",
+      "surface": "Inline-error catalog \u2014 hand-rolled variants",
+      "state": "Catalog variants page, dark appearance, fixed synthetic copy",
+      "fixture": "Debug-only ReviewCatalogView added identically to both isolated worktrees, reached via SHOW_REVIEW_CATALOG; renders fixed synthetic copy only. No wallet, mint, seed, or balance state.",
+      "expected_change": "Before: H1 is a hand-rolled tinted copy of InlineNotice, H2 pairs Color.red with the unfilled caution circle, H4 is a solid red slab at radius 10, and only three severity glyphs exist. After: H1 delegates to InlineNotice, H2 uses the semantic token and the error glyph, H4 *is* ErrorBannerView rather than a copy of its body, and a success glyph appears.",
+      "limitations": [
+        "Static rendering only: proves no VoiceOver/TalkBack announcement, live region behaviour, or animation."
+      ],
+      "before": {
+        "file": "ios/ios26.5/ios-before-variants-ios26.5-iphone17pro-dark.png",
+        "build_id": "ios-before-26.5-dark",
+        "sha256": "328c9b9ae715c0c62ad1c48fa64d69da618c69108fbd2e10e01dcb2fc21ab991"
+      },
+      "after": {
+        "file": "ios/ios26.5/ios-after-variants-ios26.5-iphone17pro-dark.png",
+        "build_id": "ios-after-26.5-dark",
+        "sha256": "b1b6ff87e0b2ac3748062457fc5c9956f7ce318c57e1e1e6d02510d27e06a815"
+      }
+    }
+  ],
+  "extras": [],
+  "limitations": [
+    "Static screenshots do not prove payment, secure-storage, NFC, or background behavior.",
+    "The restored VoiceOver \"Caution. \" prefix on iOS is a code change and appears in no image.",
+    "Android TalkBack semantics { error(...) } and the InlineNotice polite live region are not visible in a screenshot.",
+    "iOS 26.6 was the newest stable release at capture time; its simulator runtime was not installed, so 26.5 (23F77) was used by explicit choice.",
+    "Android 17 / API 37 was still beta at capture time and was excluded; API 36 is the newest stable image.",
+    "Catalog surfaces render components directly and do not prove the real screens' state wiring."
+  ]
+}
