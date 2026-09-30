@@ -56,8 +56,8 @@ enum class QRSize(val label: String, val chunkSize: Int) {
     }
 }
 
-/** Notes longer than this animate instead of packing into one dense QR. */
-private const val FEDIMINT_STATIC_QR_LIMIT = 700
+/** Notes longer than this animate instead of packing into one dense QR. Fedi only scans whole notes, so keep typical sends static. */
+private const val FEDIMINT_STATIC_QR_LIMIT = 1500
 
 internal data class QRFrameSequence(
     val firstFrame: String,

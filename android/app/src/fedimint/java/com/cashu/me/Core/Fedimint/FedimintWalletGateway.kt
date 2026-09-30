@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.fedimint.sdk.ActivityItem
 import org.fedimint.sdk.ActivityStatus
 import org.fedimint.sdk.Direction
 import org.fedimint.sdk.EcashReceiveState
@@ -447,7 +448,7 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
                     kind = kind,
                     dateEpochMillis = item.time.toLong(),
                     status = when (item.status) {
-                        ActivityStatus.PENDING -> TransactionStatus.Pending
+                        ActivityStatus.PENDING -> pendingStatus(federation, item)
                         ActivityStatus.SUCCESS -> TransactionStatus.Completed
                         else -> TransactionStatus.Failed
                     },
@@ -466,6 +467,20 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
         }
 
     // ---- helpers --------------------------------------------------------------
+
+    /**
+     * The activity feed can lag the operation, so a pending ecash send asks the
+     * operation itself whether the receiver has redeemed (or the send was cancelled).
+     */
+    private suspend fun pendingStatus(federation: Federation, item: ActivityItem): TransactionStatus {
+        if (item.kind != OperationKind.ECASH_SEND) return TransactionStatus.Pending
+        val state = runCatching { federation.operation(item.operationId)?.asEcashSend()?.state() }.getOrNull()
+        return when (state) {
+            EcashSendState.REDEEMED -> TransactionStatus.Completed
+            EcashSendState.CANCELED -> TransactionStatus.Failed
+            else -> TransactionStatus.Pending
+        }
+    }
 
     private fun quoteId(prefix: String, federationId: String, operationId: String) =
         "$prefix$federationId-$operationId"
