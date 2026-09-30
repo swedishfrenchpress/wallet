@@ -40,7 +40,7 @@ class AppContainer(
     val snackbarHostState = SnackbarHostState()
     val connectivityObserver = AndroidConnectivityObserver(appContext)
     val walletDatabasePathManager = WalletDatabasePathManager(appContext)
-    val cdkGateway = dependencies.walletGateway()
+    val cdkGateway = com.cashu.me.Core.Fedimint.FedimintGatewayFactory.wrap(dependencies.walletGateway(), appContext)
     val nwcManager = NwcManager(
         settingsStore = settingsStore,
         secureStorage = secureStorage,

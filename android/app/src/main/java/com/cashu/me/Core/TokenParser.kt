@@ -1,5 +1,6 @@
 package com.cashu.me.Core
 
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Models.TokenInfo
 import org.cashudevkit.CurrencyUnit as CdkCurrencyUnit
 import org.cashudevkit.Token as CdkToken
@@ -10,6 +11,8 @@ object TokenParser {
     fun extractToken(raw: String): String? {
         val withoutScheme = stripCashuScheme(raw.trim())
         return withoutScheme.takeIf { tokenPrefixes.any { prefix -> it.startsWith(prefix, ignoreCase = true) } }
+            // Fedimint OOB notes (fedimint flavor only) route through the same receive flow.
+            ?: FedimintSupport.extractNotes(raw)
     }
 
     fun normalizedToken(raw: String): String? = extractToken(raw)
@@ -28,6 +31,7 @@ object TokenParser {
     }
 
     fun tokenInfo(from: String): TokenInfo? {
+        FedimintSupport.tokenInfo(from)?.let { return it }
         val token = extractToken(from) ?: return null
         val decoded = runCatching { CdkToken.decode(token) }.getOrNull() ?: return null
         val proofs = runCatching { decoded.proofsSimple() }.getOrDefault(emptyList())

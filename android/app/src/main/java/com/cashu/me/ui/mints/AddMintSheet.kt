@@ -1,5 +1,6 @@
 package com.cashu.me.ui.mints
 
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -73,7 +74,10 @@ fun AddMintFormBody(
 
     fun pasteFromClipboard() {
         val clipboardText = clipboard.getText()?.text
-        val candidate = clipboardText?.let { mintUrlCandidates(it).firstOrNull() }
+        val candidate = clipboardText?.let { text ->
+            FedimintSupport.extractInvite(text)?.takeIf { FedimintSupport.isAvailable }
+                ?: mintUrlCandidates(text).firstOrNull()
+        }
         when {
             // The affordance only shows when the clipboard holds something, so
             // this branch is a guard against the clipboard changing underneath
@@ -89,10 +93,12 @@ fun AddMintFormBody(
     }
 
     fun addMint() {
-        val normalized = normalizeUserMintUrl(
-            url,
-            allowCleartextLocalTestMints = allowCleartextLocalTestMints,
-        )
+        // A Fedimint invite code (fed1…) is passed through as-is; the wallet joins the federation.
+        val normalized = FedimintSupport.extractInvite(url)?.takeIf { FedimintSupport.isAvailable }
+            ?: normalizeUserMintUrl(
+                url,
+                allowCleartextLocalTestMints = allowCleartextLocalTestMints,
+            )
         if (normalized == null) {
             // Names the requirement, which no earlier copy does — the field's
             // placeholder is the only other place https:// appears.
@@ -123,8 +129,8 @@ fun AddMintFormBody(
                 url = it
                 error = null
             },
-            label = "Mint URL",
-            placeholder = "https://…",
+            label = if (FedimintSupport.isAvailable) "Mint URL or federation invite" else "Mint URL",
+            placeholder = if (FedimintSupport.isAvailable) "https://… or fed1…" else "https://…",
             singleLine = true,
             isError = error != null,
             supportingText = error,

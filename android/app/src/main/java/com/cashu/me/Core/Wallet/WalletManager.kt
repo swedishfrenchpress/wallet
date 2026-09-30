@@ -41,6 +41,7 @@ import com.cashu.me.Core.Wallet.isInsufficientBalance
 import com.cashu.me.Models.MeltPaymentResult
 import com.cashu.me.Models.MeltQuoteInfo
 import com.cashu.me.Models.MeltQuoteState
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Models.MintInfo
 import com.cashu.me.Models.MintQuoteInfo
 import com.cashu.me.Models.MintQuoteState
@@ -386,18 +387,30 @@ class WalletManager(
 
     override suspend fun addMint(url: String) {
         var addedMintUrl: String? = null
+        val federationInvite = FedimintSupport.extractInvite(url)
         withLoading {
-            val normalized = mintMetadataFetcher.normalizeMintUrl(url)
-            mintMetadataFetcher.validateMintUrl(normalized)?.let { throw IllegalArgumentException(it) }
-            if (mutableState.value.mints.any { it.url == normalized }) {
-                throw IllegalArgumentException("Mint already exists.")
+            val normalized: String
+            val fetched: MintInfo
+            if (federationInvite != null) {
+                // Fedimint federation: joined by invite code, tracked as `fedimint:<id>`.
+                fetched = gateway.joinFederation(federationInvite)
+                normalized = fetched.url
+                if (mutableState.value.mints.any { it.url == normalized }) {
+                    throw IllegalArgumentException("Federation already exists.")
+                }
+            } else {
+                normalized = mintMetadataFetcher.normalizeMintUrl(url)
+                mintMetadataFetcher.validateMintUrl(normalized)?.let { throw IllegalArgumentException(it) }
+                if (mutableState.value.mints.any { it.url == normalized }) {
+                    throw IllegalArgumentException("Mint already exists.")
+                }
+                // Connect and commit first so the Mints view responds promptly.
+                // NUT-09 recovery starts below on the app-lifetime scope and
+                // refreshes balances/history after it completes.
+                gateway.ensureWallet(normalized)
+                fetched = gateway.fetchMintInfo(normalized)
+                    ?: throw IllegalStateException("Mint did not return info via CDK.")
             }
-            // Connect and commit first so the Mints view responds promptly.
-            // NUT-09 recovery starts below on the app-lifetime scope and
-            // refreshes balances/history after it completes.
-            gateway.ensureWallet(normalized)
-            val fetched = gateway.fetchMintInfo(normalized)
-                ?: throw IllegalStateException("Mint did not return info via CDK.")
             val updated = mutableState.value.mints + fetched
             walletStore.setMintRemoved(normalized, removed = false)
             walletStore.saveMints(updated)
@@ -411,6 +424,11 @@ class WalletManager(
                 if (mutableState.value.mints.none { it.url == mintUrl }) return@launch
 
                 runCatching {
+                    if (FedimintSupport.isFederationKey(mintUrl)) {
+                        refreshBalance()
+                        loadTransactions()
+                        return@runCatching
+                    }
                     restoreProofsForAddedMint(
                         mintUrl = mintUrl,
                         restoreMint = { withContext(Dispatchers.IO) { gateway.restoreMint(it) } },
@@ -1678,7 +1696,7 @@ class WalletManager(
     }
 
     private suspend fun ensureMintTracked(url: String): String {
-        val normalized = mintMetadataFetcher.normalizeMintUrl(url)
+        val normalized = if (FedimintSupport.isFederationKey(url)) url else mintMetadataFetcher.normalizeMintUrl(url)
         walletStore.setMintRemoved(normalized, removed = false)
         runCatching { gateway.ensureWallet(normalized) }
             .onFailure { AppLogger.wallet.error("CDK wallet preparation is not available yet for $normalized", it) }

@@ -44,6 +44,25 @@ android {
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
     }
 
+    // "cashu" is the stock app; "fedimint" adds the Fedimint Kotlin SDK. The SDK's
+    // AAR needs minSdk 28 and ships only arm64-v8a/x86_64 natives.
+    flavorDimensions += "edition"
+    productFlavors {
+        create("cashu") {
+            dimension = "edition"
+            isDefault = true
+        }
+        create("fedimint") {
+            dimension = "edition"
+            applicationIdSuffix = ".fedi"
+            versionNameSuffix = "-fedi"
+            minSdk = 28
+            ndk {
+                abiFilters += listOf("arm64-v8a", "x86_64")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -151,6 +170,7 @@ dependencies {
     implementation(libs.cdk.android)
     implementation(libs.coil.compose)
     implementation(libs.sentry.android)
+    "fedimintImplementation"(libs.fedimint.sdk)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

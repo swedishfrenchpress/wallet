@@ -1,5 +1,6 @@
 package com.cashu.me.ui.shell
 
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.animation.AnimatedContent
@@ -793,6 +794,12 @@ private fun routeScannedPayload(
             return
         }
         ScannerTarget.Auto -> Unit
+    }
+    if (FedimintSupport.isAvailable) {
+        FedimintSupport.extractInvite(trimmed)?.let {
+            onMint(it)
+            return
+        }
     }
     TokenParser.extractToken(trimmed)?.let {
         onReceiveDetail(it)

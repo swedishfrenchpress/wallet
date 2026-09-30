@@ -1,5 +1,6 @@
 package com.cashu.me.Core
 
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Models.MintInfo
 import java.net.URL
 
@@ -41,7 +42,11 @@ internal fun mintUrlCandidates(rawInput: String): List<String> =
         .distinct()
 
 internal fun shortenMintUrl(url: String): String =
-    url.removePrefix("https://")
+    if (FedimintSupport.isFederationKey(url)) {
+        // Opaque federation id: fixed 8…6 cut, never width-filled.
+        val id = FedimintSupport.federationId(url)
+        if (id.length > 16) id.take(8) + "…" + id.takeLast(6) else id
+    } else url.removePrefix("https://")
         .removePrefix("http://")
         .trimEnd('/')
 

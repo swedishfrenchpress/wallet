@@ -32,6 +32,13 @@ interface CdkWalletGateway {
     suspend fun ensureWallet(mintUrl: String, unit: String = "sat")
 
     /**
+     * Fedimint: join the federation behind [invite] and return it as a mint
+     * row keyed `fedimint:<federationId>`. Only the fedimint flavor supports it.
+     */
+    suspend fun joinFederation(invite: String): MintInfo =
+        throw CdkGatewayUnavailable("Fedimint is not available in this build.")
+
+    /**
      * Atomically inspects the native repository and removes [mintUrl] only when
      * it has at most one registered unit. Returns false when no native wallet
      * existed and throws [MultiUnitWalletRemovalException] before changing the
