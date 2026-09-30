@@ -64,6 +64,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cashu.me.Core.AnimatedUrDecoder
+import com.cashu.me.Core.Fedimint.FedimintFountainDecoder
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Core.WalletHaptic
 import com.cashu.me.Core.rememberWalletHaptics
 import com.cashu.me.ui.components.InlineNotice
@@ -130,6 +132,7 @@ fun ScannerView(
     var animatedProgress by remember(sessionId) { mutableStateOf(0f) }
     var animatedError by remember(sessionId) { mutableStateOf<String?>(null) }
     val animatedUrDecoder = remember(sessionId) { AnimatedUrDecoder() }
+    val fedimintDecoder = remember(sessionId) { FedimintFountainDecoder() }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         cameraPermissionState = cameraPermissionResultState(
             granted = granted,
@@ -235,6 +238,21 @@ fun ScannerView(
                         completedScan = true
                         haptics.perform(WalletHaptic.Success)
                         onScanned(decoded)
+                    }
+                } else if (FedimintSupport.isAvailable &&
+                    FedimintSupport.extractNotes(trimmed) == null &&
+                    FedimintFountainDecoder.isFragment(trimmed)
+                ) {
+                    // Animated Fedimint ecash QR: collect fragments until the notes reassemble.
+                    val message = fedimintDecoder.receive(trimmed)
+                    animatedProgress = fedimintDecoder.progress
+                    val notes = message?.let(FedimintSupport::notesFromFountainMessage)
+                    if (notes != null) {
+                        completedScan = true
+                        haptics.perform(WalletHaptic.Success)
+                        onScanned(notes)
+                    } else if (message != null) {
+                        animatedError = "Unable to decode animated QR."
                     }
                 } else {
                     completedScan = true

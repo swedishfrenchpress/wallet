@@ -56,6 +56,12 @@ object FedimintSupport {
         return candidate.takeIf { parser(it) != null }
     }
 
+    /** Turns a reassembled animated-QR message back into a notes string the SDK accepts. */
+    fun notesFromFountainMessage(message: ByteArray): String? {
+        val parser = notesParser ?: return null
+        return FedimintFountainDecoder.notesCandidates(message).firstOrNull { parser(it) != null }
+    }
+
     fun tokenInfo(raw: String): TokenInfo? {
         val notes = extractNotes(raw) ?: return null
         val sats = notesParser?.invoke(notes) ?: return null
