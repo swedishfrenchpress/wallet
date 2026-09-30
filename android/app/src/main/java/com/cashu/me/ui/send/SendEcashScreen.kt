@@ -404,7 +404,12 @@ fun SendEcashScreen(
                     onPickMint = { pickerOpen = true }.takeIf { walletState.mints.size > 1 },
                     onUseMax = {
                         if (mintBalance > 0L) {
-                            amount = amountEntryContext.maxRawForBalance(mintBalance)
+                            val maxMint = activeMintUrl ?: walletState.activeMint?.url
+                            scope.launch {
+                                // Federations charge the sender a fee on top of the amount.
+                                val sendable = maxMint?.let { walletManager.maxSendableEcash(it, effectiveUnit) }
+                                amount = amountEntryContext.maxRawForBalance(sendable ?: mintBalance)
+                            }
                         }
                     },
                     canUseMax = mintBalance > 0L,

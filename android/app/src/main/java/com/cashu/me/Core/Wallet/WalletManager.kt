@@ -1311,6 +1311,10 @@ class WalletManager(
         }
     }
 
+    /** Largest sendable ecash amount for [mintUrl], or null when it is simply the balance. */
+    suspend fun maxSendableEcash(mintUrl: String, unit: String): Long? =
+        runCatching { gateway.maxSendableEcash(mintUrl, unit) }.getOrNull()
+
     suspend fun calculateReceiveFee(tokenString: String): Long = gateway.calculateReceiveFee(tokenString)
 
     suspend fun estimateCashuPaymentRequestFee(amountSats: Long, mintUrl: String): Long =

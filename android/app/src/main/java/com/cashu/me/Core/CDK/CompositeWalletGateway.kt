@@ -37,6 +37,9 @@ class CompositeWalletGateway(
     override suspend fun ensureWallet(mintUrl: String, unit: String) =
         forMint(mintUrl).ensureWallet(mintUrl, unit)
 
+    override suspend fun maxSendableEcash(mintUrl: String, unit: String): Long? =
+        forMint(mintUrl).maxSendableEcash(mintUrl, unit)
+
     override suspend fun joinFederation(invite: String): MintInfo = fedi.joinFederation(invite)
 
     override suspend fun removeWalletIfSingleUnit(mintUrl: String): Boolean =

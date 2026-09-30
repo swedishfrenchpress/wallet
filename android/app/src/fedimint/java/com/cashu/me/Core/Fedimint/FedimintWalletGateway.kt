@@ -331,6 +331,24 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
         }
     }
 
+    /** Federation sends charge the sender a fee on top, so "Max" is the largest amount that still quotes. */
+    override suspend fun maxSendableEcash(mintUrl: String, unit: String): Long? {
+        val federation = federation(mintUrl)
+        val ecash = federation.ecash() ?: return null
+        var amount = msatsToSats(federation.balance())
+        var attempts = 0
+        while (amount > 0 && attempts++ < MAX_QUOTE_ATTEMPTS) {
+            try {
+                ecash.quote((amount * 1000).toULong()).close()
+                return amount
+            } catch (error: SdkException) {
+                if (error.code() != ErrorCode.INSUFFICIENT_BALANCE) return null
+                amount -= 1
+            }
+        }
+        return 0
+    }
+
     override suspend fun receiveEcashToken(tokenString: String, p2pkSigningKeys: List<String>): Long {
         val notes = try {
             Notes.parse(FedimintSupport.extractNotes(tokenString) ?: tokenString.trim())
@@ -474,5 +492,6 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
 
     private companion object {
         const val POLL_MILLIS = 2_000L
+        const val MAX_QUOTE_ATTEMPTS = 200
     }
 }

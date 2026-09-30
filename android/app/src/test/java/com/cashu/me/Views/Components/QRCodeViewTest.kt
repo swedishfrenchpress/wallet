@@ -19,7 +19,7 @@ class QRCodeViewTest {
 
         assertEquals("lnbc1static", sequence.firstFrame)
         assertEquals(1, sequence.totalParts)
-        assertNull(sequence.encoder)
+        assertNull(sequence.nextFrame)
     }
 
     @Test
@@ -33,7 +33,7 @@ class QRCodeViewTest {
 
         assertEquals(content, sequence.firstFrame)
         assertEquals(1, sequence.totalParts)
-        assertNull(sequence.encoder)
+        assertNull(sequence.nextFrame)
     }
 
     @Test
@@ -49,6 +49,6 @@ class QRCodeViewTest {
 
         assertEquals(content, sequence.firstFrame)
         assertEquals(1, sequence.totalParts)
-        assertNull(sequence.encoder)
+        assertNull(sequence.nextFrame)
     }
 }

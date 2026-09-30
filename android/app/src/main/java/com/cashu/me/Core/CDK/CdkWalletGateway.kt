@@ -35,6 +35,13 @@ interface CdkWalletGateway {
      * Fedimint: join the federation behind [invite] and return it as a mint
      * row keyed `fedimint:<federationId>`. Only the fedimint flavor supports it.
      */
+    /**
+     * Largest ecash amount that can actually be sent from [mintUrl], when the
+     * backend charges the sender a fee on top of the amount (Fedimint). Null
+     * means "the balance", which is right for CDK's receiver-pays sends.
+     */
+    suspend fun maxSendableEcash(mintUrl: String, unit: String): Long? = null
+
     suspend fun joinFederation(invite: String): MintInfo =
         throw CdkGatewayUnavailable("Fedimint is not available in this build.")
 

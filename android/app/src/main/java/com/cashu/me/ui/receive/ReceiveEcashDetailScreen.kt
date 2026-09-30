@@ -94,7 +94,8 @@ fun ReceiveEcashDetailScreen(
 
     // Parse synchronously so the hero renders on the first frame (iOS parses
     // eagerly in init — no spurious 0 → N roll on mount).
-    val parsed = remember(payload) { parseToken(payload) }
+    val federationUrls = walletState.mints.map { it.url }.filter(com.cashu.me.Core.Fedimint.FedimintSupport::isFederationKey)
+    val parsed = remember(payload, federationUrls) { parseToken(payload, walletState.mints) }
     var review by remember(payload) { mutableStateOf<TokenReview?>(null) }
     var status by remember(payload) { mutableStateOf<TokenClaimStatus?>(null) }
     val mintTrust = remember(parsed, walletState.mints) {

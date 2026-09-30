@@ -78,13 +78,19 @@ internal sealed interface TokenParseOutcome {
 }
 
 /** Synchronous decode — cheap, safe to run in composition via `remember`. */
-internal fun parseToken(raw: String): TokenParseOutcome {
+internal fun parseToken(raw: String, knownMints: List<com.cashu.me.Models.MintInfo> = emptyList()): TokenParseOutcome {
     val token = TokenParser.extractToken(raw)
         ?: return TokenParseOutcome.Invalid(
             TokenParser.malformedTokenMessage(raw) ?: "Couldn't read token.",
         )
-    val info = TokenInfo.parse(token)
+    var info = TokenInfo.parse(token)
         ?: return TokenParseOutcome.Invalid("Couldn't decode token.")
+    // Fedimint notes carry no mint URL: name the joined federation they belong to.
+    if (info.mint == com.cashu.me.Core.Fedimint.FedimintSupport.NOTES_MINT_PLACEHOLDER) {
+        com.cashu.me.Core.Fedimint.FedimintSupport.federationKeyForNotes(token, knownMints)?.let {
+            info = info.copy(mint = it)
+        }
+    }
     return TokenParseOutcome.Ok(token = token, info = info)
 }
 

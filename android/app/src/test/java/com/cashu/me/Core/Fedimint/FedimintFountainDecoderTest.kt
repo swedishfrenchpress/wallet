@@ -74,6 +74,28 @@ class FedimintFountainDecoderTest {
     }
 
     @Test
+    fun encoderFramesRoundTripThroughTheDecoderEvenWhenTheLoopIsJoinedMidway() {
+        val message = ByteArray(1500) { (it * 31 + 7).toByte() }
+        val encoder = FedimintFountainEncoder(message, maxFragmentBytes = 400)
+        assertTrue(encoder.sourceCount > 1)
+        // A scanner that starts mid-loop still completes once the loop wraps around.
+        repeat(2) { encoder.nextFrame() }
+        val decoder = FedimintFountainDecoder()
+        var out: ByteArray? = null
+        repeat(encoder.sourceCount * 2) { if (out == null) out = decoder.receive(encoder.nextFrame()) }
+        assertArrayEquals(message, out)
+    }
+
+    @Test
+    fun notesBytesReadsBothBase32AndBase64Forms() {
+        val bytes = ByteArray(40) { (it + 9).toByte() }
+        val base32 = "fedimint" + FedimintFountainDecoder.base32Encode(bytes)
+        val base64 = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+        assertArrayEquals(bytes, FedimintSupport.notesBytes(base32))
+        assertArrayEquals(bytes, FedimintSupport.notesBytes(base64))
+    }
+
+    @Test
     fun combinedFragmentSelectionIsDeterministicAndInRange() {
         val checksum = byteArrayOf(1, 2, 3, 4)
         repeat(50) { i ->

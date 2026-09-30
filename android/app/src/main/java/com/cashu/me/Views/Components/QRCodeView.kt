@@ -28,8 +28,9 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.delay
+import com.cashu.me.Core.Fedimint.FedimintFountainEncoder
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import org.cashudevkit.Token as CdkToken
-import org.cashudevkit.TokenUrEncoder
 
 enum class QRSpeed(val label: String, val intervalMillis: Long) {
     Fast("F", 100),
@@ -55,10 +56,13 @@ enum class QRSize(val label: String, val chunkSize: Int) {
     }
 }
 
+/** Notes longer than this animate instead of packing into one dense QR. */
+private const val FEDIMINT_STATIC_QR_LIMIT = 700
+
 internal data class QRFrameSequence(
     val firstFrame: String,
     val totalParts: Int,
-    val encoder: TokenUrEncoder?,
+    val nextFrame: (() -> String)?,
 )
 
 @Composable
@@ -77,10 +81,10 @@ fun QRCodeView(
 
     LaunchedEffect(sequence, speed) {
         frame = sequence.firstFrame
-        val encoder = sequence.encoder ?: return@LaunchedEffect
+        val nextFrame = sequence.nextFrame ?: return@LaunchedEffect
         while (true) {
             delay(speed.intervalMillis)
-            frame = runCatching { encoder.nextPart() }.getOrDefault(frame)
+            frame = runCatching { nextFrame() }.getOrDefault(frame)
         }
     }
 
@@ -150,20 +154,32 @@ internal fun qrFrameSequence(
     chunkSize: Int,
 ): QRFrameSequence {
     if (staticOnly || content.length <= chunkSize) {
-        return QRFrameSequence(firstFrame = content, totalParts = 1, encoder = null)
+        return QRFrameSequence(firstFrame = content, totalParts = 1, nextFrame = null)
+    }
+    // Fedimint notes: a single QR only scans reliably when short, so long notes animate
+    // as fedimint-fountain frames that Fedimint wallets (and this app's scanner) reassemble.
+    if (content.length > FEDIMINT_STATIC_QR_LIMIT && FedimintSupport.extractNotes(content) != null) {
+        val encoder = FedimintFountainEncoder.forNotes(content, maxFragmentBytes = chunkSize * 2)
+        if (encoder != null && encoder.sourceCount > 1) {
+            return QRFrameSequence(
+                firstFrame = encoder.nextFrame(),
+                totalParts = encoder.sourceCount,
+                nextFrame = { encoder.nextFrame() },
+            )
+        }
     }
     return runCatching {
         val encoder = CdkToken.decode(content).urEncoder(maxFragmentLength = chunkSize.toUInt())
         if (encoder.isSingleFragment()) {
-            return QRFrameSequence(firstFrame = content, totalParts = 1, encoder = null)
+            return QRFrameSequence(firstFrame = content, totalParts = 1, nextFrame = null)
         }
         QRFrameSequence(
             firstFrame = encoder.nextPart(),
             totalParts = encoder.fragmentCount().toInt().coerceAtLeast(1),
-            encoder = encoder,
+            nextFrame = { encoder.nextPart() },
         )
     }.getOrElse {
-        QRFrameSequence(firstFrame = content, totalParts = 1, encoder = null)
+        QRFrameSequence(firstFrame = content, totalParts = 1, nextFrame = null)
     }
 }
 
