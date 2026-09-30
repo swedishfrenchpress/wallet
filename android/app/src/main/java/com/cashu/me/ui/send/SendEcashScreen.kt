@@ -83,6 +83,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashu.me.Core.AmountFormatter
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Core.AmountDisplayPrimary
 import com.cashu.me.Core.PendingTokenClaimCheckResult
 import com.cashu.me.Core.Protocols.CurrencyAmount
@@ -1058,8 +1059,10 @@ private fun GeneratedFace(
     // iOS startClaimPolling: the spinner shows for the whole watch session
     // (flipping Pending↔Checking per probe made the row flicker), intervals
     // back off 5s → 15s, and after 10 checks the row rests at Pending.
+    // Federations never report a redemption to the sender, so there is nothing to watch.
+    val isFederation = FedimintSupport.isFederationKey(mintUrl)
     LaunchedEffect(result.token, mintUrl, pollingEnabled) {
-        if (!pollingEnabled) {
+        if (!pollingEnabled || isFederation) {
             if (claimState != ClaimState.Claimed) claimState = ClaimState.Pending
             return@LaunchedEffect
         }
@@ -1207,7 +1210,19 @@ private fun GeneratedFace(
                 },
                 colors = neutralActionButtonColors(),
             )
-            if (!pollingEnabled) {
+            val federationSendId = result.transactionId?.takeIf { isFederation }
+            if (federationSendId != null) {
+                Spacer(Modifier.height(CashuTheme.spacing.tight))
+                PrimaryButton(
+                    text = "Mark as Claimed",
+                    onClick = {
+                        scope.launch {
+                            walletManager.markFederationSendClaimed(federationSendId, mintUrl)
+                            claimState = ClaimState.Claimed
+                        }
+                    },
+                )
+            } else if (!pollingEnabled) {
                 Spacer(Modifier.height(CashuTheme.spacing.tight))
                 // Keep manual status checks with the pinned actions, rather
                 // than inline beneath the QR code.

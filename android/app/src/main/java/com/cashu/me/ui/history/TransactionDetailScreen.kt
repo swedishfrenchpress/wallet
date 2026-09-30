@@ -322,7 +322,7 @@ fun TransactionReceiptSheet(
                         text = "Mark as Claimed",
                         compact = true,
                         onClick = {
-                            scope.launch { walletManager.markFederationSendClaimed(current) }
+                            scope.launch { walletManager.markFederationSendClaimed(current.id, current.mintUrl) }
                         },
                     )
                 }
