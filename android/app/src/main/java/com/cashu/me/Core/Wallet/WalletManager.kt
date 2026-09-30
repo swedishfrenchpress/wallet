@@ -42,6 +42,7 @@ import com.cashu.me.Models.MeltPaymentResult
 import com.cashu.me.Models.MeltQuoteInfo
 import com.cashu.me.Models.MeltQuoteState
 import com.cashu.me.Core.Fedimint.FedimintSupport
+import com.cashu.me.Core.isPendingSentToken
 import com.cashu.me.Models.MintInfo
 import com.cashu.me.Models.MintQuoteInfo
 import com.cashu.me.Models.MintQuoteState
@@ -1265,6 +1266,16 @@ class WalletManager(
             // elsewhere): probe the proofs directly.
             gateway.checkTokenSpendable(token, mintUrl)
         }
+
+    /**
+     * Fedimint never tells the sender when notes are redeemed, so the user can
+     * record it themselves. Local bookkeeping only: nothing is sent to the federation.
+     */
+    suspend fun markFederationSendClaimed(transaction: WalletTransaction) {
+        if (!FedimintSupport.isFederationKey(transaction.mintUrl) || !isPendingSentToken(transaction)) return
+        walletStore.addManuallyClaimedSend(transaction.id)
+        loadTransactions()
+    }
 
     suspend fun checkAllPendingTokens(): Int {
         if (!mutableState.value.isRuntimeReady) return 0

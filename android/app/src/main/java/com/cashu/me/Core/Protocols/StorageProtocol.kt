@@ -53,6 +53,7 @@ object StorageKeys {
     const val walletPendingReceiveTokens = "wallet.pendingReceiveTokens"
     const val walletTransactions = "wallet.transactions"
     const val walletSavedTokens = "wallet.savedTokens"
+    const val walletManuallyClaimedSends = "wallet.manuallyClaimedSends"
     const val walletPaymentPreimages = "wallet.paymentPreimages"
     const val walletMintQuoteTimestamps = "wallet.mintQuoteTimestamps"
     const val walletMintQuoteSchedules = "wallet.mintQuoteSchedules.v1"

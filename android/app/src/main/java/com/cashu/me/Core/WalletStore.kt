@@ -60,6 +60,17 @@ class WalletStore(
     fun saveSavedTokens(tokens: Map<String, String>) =
         saveMap(StorageKeys.walletSavedTokens, String.serializer(), tokens)
 
+    /** Federation sends the user marked claimed; the Fedimint SDK never reports a redemption to the sender. */
+    fun loadManuallyClaimedSends(): Set<String> =
+        loadList(StorageKeys.walletManuallyClaimedSends, String.serializer()).toSet()
+    @Synchronized
+    fun addManuallyClaimedSend(transactionId: String) =
+        saveList(
+            StorageKeys.walletManuallyClaimedSends,
+            String.serializer(),
+            (loadManuallyClaimedSends() + transactionId).toList(),
+        )
+
     fun loadTransactions(): List<WalletTransaction> = loadList(StorageKeys.walletTransactions, WalletTransaction.serializer())
     fun saveTransactions(transactions: List<WalletTransaction>) =
         saveList(StorageKeys.walletTransactions, WalletTransaction.serializer(), transactions)

@@ -47,10 +47,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import com.cashu.me.Core.AmountFormatter
 import com.cashu.me.Core.AmountDisplayText
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Core.PendingTokenClaimCheckResult
 import com.cashu.me.Core.PriceService
 import com.cashu.me.Core.OnchainExplorer
 import com.cashu.me.Core.ReceiveConfirmationOwner
+import com.cashu.me.Core.isPendingSentToken
 import com.cashu.me.Core.runPendingTokenClaimCheck
 import com.cashu.me.Core.SettingsManager
 import com.cashu.me.Core.shouldOfferManualClaimCheck
@@ -182,6 +184,8 @@ fun TransactionReceiptSheet(
         transaction = current,
     )
 
+    val offersMarkClaimed = FedimintSupport.isFederationKey(current.mintUrl) && isPendingSentToken(current)
+
     val hero: @Composable (Dp) -> Unit = { qrSize ->
         when {
             showsQr && qrContent != null -> QrCard(
@@ -310,6 +314,15 @@ fun TransactionReceiptSheet(
                         },
                         modifier = Modifier.semantics {
                             liveRegion = LiveRegionMode.Polite
+                        },
+                    )
+                }
+                if (offersMarkClaimed) {
+                    SecondaryButton(
+                        text = "Mark as Claimed",
+                        compact = true,
+                        onClick = {
+                            scope.launch { walletManager.markFederationSendClaimed(current) }
                         },
                     )
                 }

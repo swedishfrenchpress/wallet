@@ -5,6 +5,7 @@ import com.cashu.me.Models.MintInfo
 import com.cashu.me.Models.PaymentMethodKind
 import com.cashu.me.Models.PendingReceiveToken
 import com.cashu.me.Models.TransactionKind
+import com.cashu.me.Core.isPendingSentToken
 import com.cashu.me.Models.TransactionStatus
 import com.cashu.me.Models.TransactionType
 import com.cashu.me.Models.WalletTransaction
@@ -89,7 +90,15 @@ internal class WalletTransactionLoader(
                 transaction
             }
         }
-        val quoteIdsWithTransactions = remoteWithTokens.mapNotNull { it.quoteId }.toSet()
+        val manuallyClaimed = walletStore.loadManuallyClaimedSends()
+        val remoteWithClaims = if (manuallyClaimed.isEmpty()) remoteWithTokens else remoteWithTokens.map { transaction ->
+            if (transaction.id in manuallyClaimed && isPendingSentToken(transaction)) {
+                transaction.copy(status = TransactionStatus.Completed)
+            } else {
+                transaction
+            }
+        }
+        val quoteIdsWithTransactions = remoteWithClaims.mapNotNull { it.quoteId }.toSet()
         val mintQuoteTimestamps = walletStore.loadMintQuoteTimestamps().toMutableMap()
         val quoteRead = runCatching { gateway.listUnissuedMintQuotes() }
         quoteRead.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
@@ -143,7 +152,7 @@ internal class WalletTransactionLoader(
         // rows are skipped once CDK owns a transaction for the quote.
         // ID dedupe removes repeated reads. BOLT11 attempts additionally project
         // to one receipt without modifying CDK records.
-        val merged = (remoteWithTokens + pendingQuoteTransactions + retainedQuotes + receiveTokenTransactions)
+        val merged = (remoteWithClaims + pendingQuoteTransactions + retainedQuotes + receiveTokenTransactions)
             .map { it.restoringDescription(requests) }
             .distinctBy { it.id }
             .let(MintReceiptProjection::project)
