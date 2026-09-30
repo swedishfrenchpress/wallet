@@ -20,10 +20,12 @@ struct ComponentCatalogView: View {
     /// Which page to render. Split in two so each fits one screenshot without
     /// scrolling, and so each pairs with its Android counterpart.
     enum Page {
-        case matrix, variants, activity
+        case matrix, variants, activity, transfer
 
         init(rawValue: String?) {
-            self = rawValue == "activity" ? .activity : rawValue == "variants" ? .variants : .matrix
+            self = rawValue == "activity" ? .activity
+                : rawValue == "transfer" ? .transfer
+                : rawValue == "variants" ? .variants : .matrix
         }
     }
 
@@ -37,6 +39,8 @@ struct ComponentCatalogView: View {
             switch page {
             case .activity:
                 ActivityDetailCatalog()
+            case .transfer:
+                MintTransferCatalog()
             case .matrix:
                 noticeMatrix
                 bannerSection
@@ -149,12 +153,40 @@ struct ComponentCatalogView: View {
     }
 }
 
+/// The transfer sheet over fixture mints. Choosing mints, entering an amount and
+/// swapping direction need no wallet; only quoting does.
+private struct MintTransferCatalog: View {
+    @EnvironmentObject private var walletManager: WalletManager
+    @State private var showsTransfer = false
+
+    var body: some View {
+        Button("Transfer") { showsTransfer = true }
+            .accessibilityIdentifier("transfer")
+            .sheet(isPresented: $showsTransfer) {
+                MintTransferView()
+                    .environmentObject(walletManager)
+            }
+            .onAppear {
+                walletManager.mints = [
+                    MintInfo(url: "https://alpine.example", name: "Alpine Mint", isActive: true, balance: 12_345),
+                    MintInfo(url: "https://harbor.example", name: "Harbor Mint", isActive: false, balance: 2_100),
+                    MintInfo(url: "https://meadow.example", name: "Meadow Mint", isActive: false, balance: 0),
+                ]
+                showsTransfer = true
+            }
+    }
+}
+
 /// Deterministic receipts for native UI checks; no wallet initialization or mint is needed.
 private struct ActivityDetailCatalog: View {
     @EnvironmentObject private var walletManager: WalletManager
     @State private var selectedTransaction: WalletTransaction?
     @State private var selectedRequest: CashuRequest?
     private let date = Date(timeIntervalSince1970: 1_788_768_000)
+    private let transferLeg = MintTransferLeg(
+        recordID: "transfer", sourceMintURL: "https://mint.example",
+        destinationMintURL: "https://other.example", destinationQuoteID: "transfer-quote"
+    )
 
     private var transactions: [WalletTransaction] {
         [
@@ -169,6 +201,12 @@ private struct ActivityDetailCatalog: View {
                   preimage: "0123456789abcdef0123456789abcdef", fee: 2),
             .init(id: "failed-lightning", amount: 2100, type: .outgoing, kind: .lightning,
                   date: date, status: .failed, mintUrl: "https://mint.example"),
+            .init(id: "transfer", amount: 2100, type: .outgoing, kind: .lightning,
+                  date: date, status: .completed, mintUrl: "https://mint.example", fee: 2,
+                  transfer: transferLeg),
+            .init(id: "arriving-transfer", amount: 2100, type: .outgoing, kind: .lightning,
+                  date: date, status: .pending, statusNote: "Arriving at other.example",
+                  mintUrl: "https://mint.example", fee: 2, transfer: transferLeg),
             .init(id: "pending-ecash", amount: 2100, type: .outgoing, kind: .ecash,
                   date: date, status: .pending, mintUrl: "https://mint.example", token: "cashu-token"),
             .init(id: "received-ecash", amount: 2100, type: .incoming, kind: .ecash,

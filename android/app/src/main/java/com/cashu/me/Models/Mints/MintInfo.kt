@@ -24,6 +24,10 @@ data class MintInfo(
     // (the Description row stays hidden until a live fetch advertises true).
     val supportsBolt12MintDescription: Boolean = false,
     val onchainMintConfirmations: Int? = null,
+    // What the mint advertises for BOLT11 in sat. Null until a live NUT-06
+    // fetch reports it, so records persisted before this landed stay unknown
+    // rather than reading as "unsupported".
+    val bolt11Sat: Bolt11SatCapability? = null,
     // NUT-06 self-reported metadata (contact / terms / software). Empty or null
     // when the mint did not report it — the UI never invents placeholders.
     val contacts: List<MintContact> = emptyList(),
@@ -67,6 +71,24 @@ data class MintInfo(
         else -> candidates.sorted().firstOrNull() ?: "sat"
     }
 }
+
+/**
+ * The (bolt11, sat) pair as advertised under NUT-04 and NUT-05 — the rail a
+ * transfer between two held mints runs on. The method lists on [MintInfo]
+ * cannot answer this: mint methods are not unit-filtered and neither list
+ * carries the NUT's `disabled` flag or its amount limits.
+ */
+@Serializable
+data class Bolt11SatCapability(
+    /** NUT-04 lists (bolt11, sat) and minting is not disabled. */
+    val canMint: Boolean,
+    /** NUT-05 lists (bolt11, sat) and melting is not disabled. */
+    val canMelt: Boolean,
+    val mintMin: Long? = null,
+    val mintMax: Long? = null,
+    val meltMin: Long? = null,
+    val meltMax: Long? = null,
+)
 
 /**
  * One contact channel the mint self-reports via NUT-06 (`method` is e.g.
