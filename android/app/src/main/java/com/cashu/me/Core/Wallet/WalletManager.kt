@@ -1252,7 +1252,10 @@ class WalletManager(
     suspend fun checkSentTokenClaim(token: String, mintUrl: String, unit: String = "sat"): Boolean =
         withLoadingResult {
             val txId = walletStore.loadSavedTokens().entries.firstOrNull { it.value == token }?.key
-            val operationId = txId?.let(SagaTransactionId::operationId)
+            // Federation sends are keyed by the SDK operation id itself.
+            val operationId = txId?.let {
+                if (FedimintSupport.isFederationKey(mintUrl)) it else SagaTransactionId.operationId(it)
+            }
             if (operationId != null) {
                 return@withLoadingResult runCatching {
                     gateway.checkPendingSendClaimed(mintUrl, operationId, unit)

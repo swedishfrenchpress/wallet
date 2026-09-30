@@ -371,7 +371,12 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
     override suspend fun estimateCashuPaymentRequestFee(amountSats: Long, mintUrl: String): Long =
         unavailable("Cashu payment requests")
 
-    override suspend fun checkTokenSpendable(token: String, mintUrl: String): Boolean = true
+    /**
+     * The app reads `true` as "already spent". Notes carry no operation id, so a
+     * bare token can't be checked; report unspent and let the operation-based
+     * checks ([checkPendingSendClaimed]) decide whether a send was redeemed.
+     */
+    override suspend fun checkTokenSpendable(token: String, mintUrl: String): Boolean = false
 
     override suspend fun payCashuPaymentRequest(encoded: String, customAmountSats: Long?, preferredMintURL: String?) =
         unavailable("Cashu payment requests")
