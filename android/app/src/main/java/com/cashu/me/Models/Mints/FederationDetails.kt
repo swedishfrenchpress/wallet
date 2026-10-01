@@ -52,12 +52,44 @@ data class FederationDetails(
     val maxBalanceSats: Long? get() = metaValue("max_balance_msats")?.toLongOrNull()?.div(MSATS_PER_SAT)
     val maxInvoiceSats: Long? get() = metaValue("max_invoice_msats")?.toLongOrNull()?.div(MSATS_PER_SAT)
 
+    val previewMessage: String? get() = metaValue("preview_message")
+
+    /** What the federation says about itself: the welcome message, else the preview; blank-line runs collapsed. */
+    val aboutMessage: String?
+        get() = (welcomeMessage ?: previewMessage)
+            ?.replace("\r\n", "\n")
+            ?.replace(Regex("\n{3,}"), "\n\n")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+
+    /** When a guardians' countdown announcement runs out; Fedi uses it for a federation's end. */
+    val popupEndsAtEpochSeconds: Long? get() = metaValue("popup_end_timestamp")?.toLongOrNull()
+
+    /** When the federation stops: its declared expiry, else the end of the countdown announcement. */
+    val endsAtEpochSeconds: Long? get() = expiresAtEpochSeconds ?: popupEndsAtEpochSeconds
+
+    /** What the guardians say once the countdown is over. */
+    val endedMessage: String? get() = metaValue("popup_ended_message")
+
     /** A guardian announcement with a countdown, while it is still running. */
     fun activePopup(nowEpochSeconds: Long): String? {
-        val end = metaValue("popup_end_timestamp")?.toLongOrNull() ?: return null
+        val end = popupEndsAtEpochSeconds ?: return null
         if (end <= nowEpochSeconds) return null
         return metaValue("popup_countdown_message")
     }
+
+    /**
+     * Scalar metadata the screen doesn't already show, by key. Structured
+     * values (JSON objects and arrays such as Fedi's `sites`) are left out:
+     * they aren't readable as text.
+     */
+    val otherMeta: List<Pair<String, String>>
+        get() = meta.entries
+            .filter { (key, value) ->
+                key.removePrefix("fedi:") !in SURFACED_META_KEYS && value.isNotBlank() && !looksStructured(value)
+            }
+            .sortedBy { it.key }
+            .map { it.key to it.value.trim() }
 
     /** Fedi-run federations namespace their keys `fedi:`; prefer the standard key. */
     fun metaValue(key: String): String? =
@@ -78,6 +110,16 @@ data class FederationDetails(
 
     private companion object {
         const val MSATS_PER_SAT = 1000L
+        val SURFACED_META_KEYS = setOf(
+            "federation_name", "federation_icon_url", "welcome_message", "preview_message",
+            "federation_expiry_timestamp", "popup_end_timestamp", "popup_countdown_message", "popup_ended_message",
+            "max_balance_msats", "max_invoice_msats", "tos_url", "invite_code", "meta_external_url", "meta_override_url",
+        )
+
+        fun looksStructured(value: String): Boolean {
+            val trimmed = value.trim()
+            return (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))
+        }
         val MODULE_ORDER = listOf("Ecash", "Lightning", "On-chain")
     }
 }

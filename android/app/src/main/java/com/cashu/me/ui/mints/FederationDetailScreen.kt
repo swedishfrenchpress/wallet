@@ -1,14 +1,25 @@
 package com.cashu.me.ui.mints
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -25,24 +36,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.ArrowDownward
-import androidx.compose.material.icons.outlined.ArrowUpward
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.CurrencyBitcoin
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Extension
-import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.QrCode
-import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -51,83 +59,100 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.cashu.me.Core.AmountDisplayText
 import com.cashu.me.Core.AmountFormatter
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Core.PriceService
 import com.cashu.me.Core.SettingsManager
 import com.cashu.me.Core.Wallet.userFacingWalletMessage
 import com.cashu.me.Core.WalletManager
-import com.cashu.me.Core.shortenMintUrl
+import com.cashu.me.Core.displayText
 import com.cashu.me.Models.FederationDetails
 import com.cashu.me.Models.FederationGuardian
 import com.cashu.me.Models.FederationQuorum
 import com.cashu.me.Models.FederationState
 import com.cashu.me.Models.GuardianHealth
 import com.cashu.me.Models.MintInfo
-import com.cashu.me.Models.PaymentMethodKind
 import com.cashu.me.ui.components.ActionConfirmationSheet
+import com.cashu.me.ui.components.AmountHero
+import com.cashu.me.ui.components.AmountText
 import com.cashu.me.ui.components.DestructiveTextButton
+import com.cashu.me.ui.components.GhostButton
 import com.cashu.me.ui.components.InlineNotice
-import com.cashu.me.ui.components.InspectorRow
-import com.cashu.me.ui.components.InspectorRowStyle
 import com.cashu.me.ui.components.LocalConfirmationToastController
 import com.cashu.me.ui.components.MintAvatar
 import com.cashu.me.ui.components.NoticeSeverity
 import com.cashu.me.ui.components.PrimaryButton
 import com.cashu.me.ui.components.SectionHeader
-import com.cashu.me.ui.components.SkeletonValue
 import com.cashu.me.ui.components.TextButtonContext
 import com.cashu.me.ui.components.ToolbarIcon
 import com.cashu.me.ui.components.neutralActionButtonColors
+import com.cashu.me.ui.components.noticeColors
 import com.cashu.me.ui.components.openInBrowser
 import com.cashu.me.ui.settings.QrDetailSheet
 import com.cashu.me.ui.testing.UiTestTags
+import com.cashu.me.ui.theme.AmountScale
 import com.cashu.me.ui.theme.CapsuleShape
 import com.cashu.me.ui.theme.CashuTheme
+import com.cashu.me.ui.theme.LeadingLabel
+import com.cashu.me.ui.theme.atSize
 import com.cashu.me.ui.theme.withMonoDigits
 import com.cashu.me.ui.theme.withSlashedZero
+import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
 
 /**
- * Detail screen for a Fedimint federation (a mint keyed `fedimint:<id>`).
+ * Profile of a Fedimint federation (a mint keyed `fedimint:<id>`).
  *
- * Same shape as [MintDetailScreen] (hero header, balance and connection, quiet
- * inspector sections, then the default/remove actions), but fed by the
- * Fedimint SDK instead of NUT-06: the guardians and their quorum, network,
- * modules, the invite, and the federation's own metadata. A local snapshot
- * renders at once and offline; the guardians' view replaces it when a live
- * read lands, and a failed read keeps the snapshot with Retry.
+ * A hero (who it is, what you hold there), then inset cards in reading
+ * order: a lifecycle card when the federation is ending or can't run, the
+ * guardians (the one place connection status lives), what the federation
+ * says about itself, what you can do with it, and the details behind it.
+ * A local snapshot renders at once and offline; the guardians' view replaces
+ * it when a live read lands.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -149,6 +174,8 @@ internal fun FederationDetailScreen(
     var removing by remember(mintUrl) { mutableStateOf(false) }
     var removalError by remember(mintUrl) { mutableStateOf<String?>(null) }
     var showingInvite by remember(mintUrl) { mutableStateOf(false) }
+    var titleScrolledAway by remember(mintUrl) { mutableStateOf(false) }
+    val formatter = remember { AmountFormatter() }
 
     var snapshot by remember(mintUrl) { mutableStateOf<FederationDetails?>(null) }
     LaunchedEffect(mintUrl) {
@@ -157,7 +184,7 @@ internal fun FederationDetailScreen(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (_: Exception) {
-            // The live read below reports reachability; the header falls back to the stored mint row.
+            // The live read below reports reachability; the hero falls back to the stored mint row.
         }
     }
     val liveLoader = remember(mintUrl) { MintDetailInfoLoader<FederationDetails>() }
@@ -172,7 +199,12 @@ internal fun FederationDetailScreen(
         modifier = Modifier.testTag(UiTestTags.MintDetailScreen),
         topBar = {
             TopAppBar(
-                title = { Text(title, style = MaterialTheme.typography.titleMedium) },
+                // The hero carries the name; the bar picks it up once the hero scrolls away.
+                title = {
+                    AnimatedVisibility(visible = titleScrolledAway, enter = fadeIn(), exit = fadeOut()) {
+                        Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         ToolbarIcon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -198,18 +230,21 @@ internal fun FederationDetailScreen(
                 isActive = isActive,
                 details = details,
                 connection = liveLoader.connection,
-                showsRecovery = liveLoader.errorMessage != null,
                 onRetry = { refreshNonce += 1 },
-                balanceSecondary = mintSatBalanceFiatSecondary(
-                    balanceSats = mint.balance,
+                balance = formatter.displayText(
+                    amountSats = mint.balance,
+                    preferredPrimary = settings.amountDisplayPrimary,
                     showFiat = settings.showFiatBalance,
                     btcPrice = priceState.btcPrice,
                     currencyCode = settings.bitcoinPriceCurrency,
+                    useBitcoinSymbol = settings.useBitcoinSymbol,
                 ),
+                useBitcoinSymbol = settings.useBitcoinSymbol,
                 onShowInvite = { showingInvite = true },
+                onTitleScrolledAway = { titleScrolledAway = it },
             )
 
-            Spacer(Modifier.height(CashuTheme.spacing.comfortable))
+            Spacer(Modifier.height(CashuTheme.spacing.section))
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = CashuTheme.spacing.comfortable),
                 verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug),
@@ -286,77 +321,62 @@ internal fun FederationDetailBody(
     isActive: Boolean,
     details: FederationDetails?,
     connection: MintConnectionState,
-    showsRecovery: Boolean,
     onRetry: () -> Unit,
-    balanceSecondary: String?,
+    balance: AmountDisplayText,
+    useBitcoinSymbol: Boolean,
     onShowInvite: () -> Unit,
+    onTitleScrolledAway: (Boolean) -> Unit = {},
     nowEpochSeconds: Long = System.currentTimeMillis() / 1000,
+    zone: ZoneId = ZoneId.systemDefault(),
+    technicalExpanded: Boolean = false,
 ) {
-    val checking = connection == MintConnectionState.Checking
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug),
-    ) {
-        FederationHeader(mint = mint, details = details, isActive = isActive)
+    val formatter = remember { AmountFormatter() }
+    val lifecycle = details?.let { federationLifecycle(it, nowEpochSeconds, zone) }
+    val paymentRows = details?.let { federationPaymentRows(it, formatter, useBitcoinSymbol) }.orEmpty()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        FederationHero(
+            mint = mint,
+            details = details,
+            isActive = isActive,
+            balance = balance,
+            onTitleScrolledAway = onTitleScrolledAway,
+        )
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            InspectorRow(
-                style = InspectorRowStyle.Standard,
-                label = "Balance",
-                value = "${mint.balance} sat",
-                secondaryValue = balanceSecondary,
-                leadingIcon = Icons.Outlined.CurrencyBitcoin,
-                valueMonospaced = true,
-            )
-            MintConnectionStatus(
-                connection = connection,
-                showsRecovery = showsRecovery,
-                onRetry = onRetry,
-                subject = "federation",
-            )
+        // External meta (where Fedi federations publish an end date) can land
+        // with the live read, after the first frame; let the card slide in.
+        AnimatedVisibility(
+            visible = lifecycle != null,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            lifecycle?.let { FederationLifecycleCard(it, Modifier.padding(top = CashuTheme.spacing.default)) }
         }
 
-        FederationNotices(details = details, nowEpochSeconds = nowEpochSeconds)
+        GuardiansCard(details = details, status = guardianStatusCopy(details, connection), onRetry = onRetry)
 
-        details?.welcomeMessage?.let { welcome ->
-            SectionHeader("Message from the federation")
-            Text(
-                text = welcome,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = CashuTheme.spacing.comfortable),
-            )
-        }
-
-        GuardiansSection(details = details, checking = checking)
-
-        // Rails the app can drive here: federations settle Lightning over BOLT11.
-        val rails = when {
-            details == null -> mint.effectiveMintMethods
-            details.supportsLightning -> listOf(PaymentMethodKind.Bolt11)
-            else -> emptyList()
-        }
-        if (rails.isNotEmpty()) {
-            SectionHeader("Payment methods")
-            Column(modifier = Modifier.fillMaxWidth()) {
-                InspectorRow(
-                    style = InspectorRowStyle.Standard,
-                    label = "Receive",
-                    value = rails.joinToString(" · ") { it.displayName },
-                    leadingIcon = Icons.Outlined.ArrowDownward,
-                )
-                InspectorRow(
-                    style = InspectorRowStyle.Standard,
-                    label = "Send",
-                    value = rails.joinToString(" · ") { it.displayName },
-                    leadingIcon = Icons.Outlined.ArrowUpward,
+        details?.aboutMessage?.let { about ->
+            SectionHeader("About")
+            FederationCard {
+                ClampedText(
+                    text = about,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = CashuTheme.spacing.comfortable, bottom = CashuTheme.spacing.default),
                 )
             }
         }
 
-        FederationDetailsSection(details = details, checking = checking, onShowInvite = onShowInvite)
+        if (paymentRows.isNotEmpty()) {
+            SectionHeader("Payments")
+            FederationCard {
+                paymentRows.forEachIndexed { index, row ->
+                    if (index > 0) CardDivider()
+                    CardRow(label = row.label, value = row.value, digits = row.digits)
+                }
+            }
+        }
 
-        if (details != null) FederationTechnicalDetails(details)
+        FederationDetailsCard(mint = mint, details = details, onShowInvite = onShowInvite, technicalExpanded = technicalExpanded)
 
         // Provenance, as on the mint screen: names, messages and limits are the
         // guardians' own claims, not something the wallet verified.
@@ -364,41 +384,33 @@ internal fun FederationDetailBody(
             text = "Information reported by the federation's guardians.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = CashuTheme.spacing.comfortable),
+            modifier = Modifier.padding(start = CashuTheme.spacing.comfortable, end = CashuTheme.spacing.comfortable, top = CashuTheme.spacing.comfortable),
         )
     }
 }
 
+// ---- hero ----------------------------------------------------------------------
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FederationHeader(mint: MintInfo, details: FederationDetails?, isActive: Boolean) {
+private fun FederationHero(
+    mint: MintInfo,
+    details: FederationDetails?,
+    isActive: Boolean,
+    balance: AmountDisplayText,
+    onTitleScrolledAway: (Boolean) -> Unit,
+) {
+    val network = details?.network?.takeUnless { it.isMainnet }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.comfortable),
+            .padding(horizontal = CashuTheme.spacing.comfortable)
+            .padding(top = CashuTheme.spacing.snug, bottom = CashuTheme.spacing.snug),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.default),
     ) {
-        Box {
-            MintAvatar(mint = mint.copy(iconUrl = details?.iconUrl ?: mint.iconUrl), size = 72.dp)
-            if (isActive) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(CashuTheme.spacing.comfortable)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Check,
-                        contentDescription = "Active",
-                        tint = CashuTheme.colors.onReceivedContainer,
-                        modifier = Modifier.size(CashuTheme.spacing.default),
-                    )
-                }
-            }
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        MintAvatar(mint = mint.copy(iconUrl = details?.iconUrl ?: mint.iconUrl), size = 72.dp)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = details?.name ?: mint.name,
                 style = MaterialTheme.typography.headlineSmall,
@@ -406,22 +418,25 @@ private fun FederationHeader(mint: MintInfo, details: FederationDetails?, isActi
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .semantics { heading() }
+                    // The scroll container clips this, so a shrinking visible height
+                    // means the name is passing under the top bar.
+                    .onGloballyPositioned { coordinates ->
+                        onTitleScrolledAway(coordinates.boundsInRoot().height < coordinates.size.height / 2f)
+                    },
             )
             Text(
-                text = federationSubtitle(details?.guardianCount),
+                text = "Fedimint federation",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
             )
         }
-        CopyValueChip(
-            text = shortenMintUrl(mint.url),
-            value = details?.federationId ?: mint.url.removePrefix("fedimint:"),
-            label = "federation ID",
-        )
-        val network = details?.network?.takeUnless { it.isMainnet }
         if (isActive || network != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug),
+            ) {
                 if (isActive) {
                     HeaderPill(
                         text = "Default mint",
@@ -439,6 +454,30 @@ private fun FederationHeader(mint: MintInfo, details: FederationDetails?, isActi
                 }
             }
         }
+        HeroBalance(balance = balance, modifier = Modifier.padding(top = CashuTheme.spacing.snug))
+    }
+}
+
+/** The amount held here, set like the receipt hero: big primary, quiet secondary. */
+@Composable
+private fun HeroBalance(balance: AmountDisplayText, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        AmountHero(parts = balance.primaryParts, scale = AmountScale.Confirm, accessibilityPrefix = "Balance")
+        balance.secondary?.let { secondary ->
+            AmountText(
+                text = secondary,
+                style = MaterialTheme.typography.bodyLarge
+                    .atSize(18.sp, leading = LeadingLabel)
+                    .copy(fontWeight = FontWeight.Medium)
+                    .withMonoDigits(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                animated = false,
+            )
+        }
     }
 }
 
@@ -455,100 +494,68 @@ private fun HeaderPill(text: String, container: Color, content: Color) {
     )
 }
 
-/** Same chip as the mint screen's URL chip: a fixed 8…6 cut that copies the full value. */
+// ---- lifecycle -------------------------------------------------------------------
+
 @Composable
-private fun CopyValueChip(text: String, value: String, label: String) {
-    val clipboard = LocalClipboardManager.current
-    val confirmationToastController = LocalConfirmationToastController.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.tight),
-        modifier = Modifier
-            .clip(CircleShape)
-            .clickable(onClickLabel = "Copy $label") {
-                clipboard.setText(AnnotatedString(value))
-                confirmationToastController?.show("Copied $label")
-            }
-            .padding(horizontal = CashuTheme.spacing.snug, vertical = CashuTheme.spacing.tight),
+private fun FederationLifecycleCard(lifecycle: FederationLifecycle, modifier: Modifier = Modifier) {
+    val (icon, _, container) = noticeColors(lifecycle.severity)
+    val ink = when (lifecycle.severity) {
+        NoticeSeverity.Error -> MaterialTheme.colorScheme.onErrorContainer
+        NoticeSeverity.Caution -> CashuTheme.colors.onPendingContainer
+        NoticeSeverity.Success -> CashuTheme.colors.onReceivedContainer
+        NoticeSeverity.Info -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Card(
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = container),
+        modifier = modifier.fillMaxWidth().padding(horizontal = CashuTheme.spacing.comfortable),
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = CashuTheme.fonts.mono).withSlashedZero(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
-        Icon(
-            imageVector = Icons.Outlined.ContentCopy,
-            contentDescription = "Copy $label",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
-        )
+        Column(
+            modifier = Modifier.padding(
+                top = CashuTheme.spacing.comfortable,
+                bottom = if (lifecycle.message == null) CashuTheme.spacing.comfortable else CashuTheme.spacing.default,
+            ),
+            verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.tight),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug),
+                modifier = Modifier
+                    .padding(horizontal = CashuTheme.spacing.comfortable)
+                    .semantics(mergeDescendants = true) {
+                        heading()
+                        liveRegion = LiveRegionMode.Polite
+                    },
+            ) {
+                Icon(imageVector = icon, contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
+                Text(text = lifecycle.headline, style = MaterialTheme.typography.titleSmall, color = ink)
+            }
+            // The headline carries the severity; the guardians' prose reads in neutral ink.
+            lifecycle.message?.let {
+                ClampedText(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
     }
 }
 
-/** Lifecycle, shutdown and guardian announcements, most serious first. */
-@Composable
-private fun FederationNotices(details: FederationDetails?, nowEpochSeconds: Long) {
-    if (details == null) return
-    val notices = buildList {
-        when (val state = details.state) {
-            FederationState.Recovering -> add(
-                NoticeSeverity.Caution to "Restoring this federation's balance from your seed. Payments resume when it finishes.",
-            )
-            is FederationState.Quarantined -> add(NoticeSeverity.Error to "This federation couldn't be opened. ${state.reason}")
-            FederationState.Closed -> add(NoticeSeverity.Error to "This federation is closed in this wallet.")
-            FederationState.Running -> Unit
-        }
-        details.expiresAtEpochSeconds?.let { expiry ->
-            val date = formatFederationDate(expiry)
-            add(
-                if (expiry > nowEpochSeconds) {
-                    NoticeSeverity.Caution to "The guardians plan to shut this federation down on $date. Move your funds out before then."
-                } else {
-                    NoticeSeverity.Error to "The guardians shut this federation down on $date."
-                },
-            )
-        }
-        details.activePopup(nowEpochSeconds)?.let { add(NoticeSeverity.Info to it) }
-    }
-    if (notices.isEmpty()) return
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = CashuTheme.spacing.comfortable),
-        verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug),
-    ) {
-        notices.forEach { (severity, text) -> InlineNotice(text = text, severity = severity, showsContainer = true) }
-    }
-}
+// ---- guardians -------------------------------------------------------------------
 
 /**
- * One inset group, Settings style: how many guardians are online and signing
- * (a ring with one arc per guardian, coloured by health, around the online
- * count), then each guardian as a contact row with a presence dot. Health is
- * consensus' own view, from the guardians' `status` replies. Tapping a
- * guardian copies its address.
+ * How many guardians are online and signing, then each guardian. The status
+ * row is the screen's only connection indicator. Tapping a guardian copies
+ * its address.
  */
 @Composable
-private fun GuardiansSection(details: FederationDetails?, checking: Boolean) {
+private fun GuardiansCard(details: FederationDetails?, status: GuardianStatusCopy, onRetry: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val confirmationToastController = LocalConfirmationToastController.current
     val guardians = details?.guardians.orEmpty()
     val healthKnown = details?.healthKnown == true
     SectionHeader("Guardians")
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = CashuTheme.spacing.comfortable)
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)),
-    ) {
-        GuardianHealthRow(details = details, guardians = guardians, checking = checking)
+    FederationCard {
+        GuardianStatusRow(details = details, guardians = guardians, status = status, onRetry = onRetry)
         guardians.forEach { guardian ->
-            HorizontalDivider(
-                thickness = Dp.Hairline,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                modifier = Modifier.padding(start = GuardianTextInset),
-            )
+            CardDivider(start = GuardianTextInset)
             GuardianRow(guardian = guardian.takeIf { healthKnown } ?: guardian.copy(health = GuardianHealth.Unknown)) {
                 clipboard.setText(AnnotatedString(guardian.url))
                 confirmationToastController?.show("Copied guardian address")
@@ -558,44 +565,71 @@ private fun GuardiansSection(details: FederationDetails?, checking: Boolean) {
 }
 
 @Composable
-private fun GuardianHealthRow(details: FederationDetails?, guardians: List<FederationGuardian>, checking: Boolean) {
-    val copy = details?.let(::guardianHealthCopy)
+private fun GuardianStatusRow(
+    details: FederationDetails?,
+    guardians: List<FederationGuardian>,
+    status: GuardianStatusCopy,
+    onRetry: () -> Unit,
+) {
+    val stacked = LocalConfiguration.current.fontScale > 1.3f
+    val healthKnown = details?.healthKnown == true
     val count = details?.quorum?.guardians
-    val title = copy?.title ?: when {
-        checking -> "Checking guardians…"
-        count != null -> if (count == 1) "1 guardian" else "$count guardians"
-        else -> "Guardians unavailable"
+    val retry: @Composable () -> Unit = {
+        TextButton(
+            onClick = onRetry,
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+        ) { Text("Retry") }
     }
-    val subtitle = copy?.subtitle ?: if (checking) null else "Couldn't check who's online"
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.comfortable),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(CashuTheme.spacing.comfortable)
-            .semantics(mergeDescendants = true) {
-                contentDescription = listOfNotNull(title, subtitle).joinToString(". ")
-            },
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(CashuTheme.spacing.comfortable),
+        verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug),
     ) {
-        GuardianRing(
-            healths = guardians.map { it.health }.takeIf { copy != null },
-            count = count,
-            label = if (copy != null) details.onlineCount.toString() else count?.toString() ?: "–",
-            modifier = Modifier.size(GuardianLeadingSize),
-        )
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (copy != null || count != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            subtitle?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (copy?.warning == true) CashuTheme.colors.onPendingContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.default),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.comfortable),
+                modifier = Modifier
+                    .weight(1f)
+                    .clearAndSetSemantics {
+                        contentDescription = listOfNotNull(status.title, status.subtitle).joinToString(". ")
+                        liveRegion = LiveRegionMode.Polite
+                    },
+            ) {
+                Box(modifier = Modifier.size(GuardianLeadingSize), contentAlignment = Alignment.Center) {
+                    if (status.busy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(GuardianLeadingSize),
+                            strokeWidth = GuardianRingStroke,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                        )
+                    } else {
+                        GuardianRing(
+                            healths = guardians.map { it.health }.takeIf { healthKnown },
+                            count = count,
+                            label = if (healthKnown) details!!.onlineCount.toString() else count?.toString() ?: "–",
+                            modifier = Modifier.size(GuardianLeadingSize),
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = status.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                    status.subtitle?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (status.warning) CashuTheme.colors.onPendingContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
+            if (status.showsRetry && !stacked) retry()
+        }
+        if (status.showsRetry && stacked) {
+            Box(modifier = Modifier.padding(start = GuardianLeadingSize)) { retry() }
         }
     }
 }
@@ -754,110 +788,128 @@ private fun guardianStateLabel(health: GuardianHealth): String? = when (health) 
     GuardianHealth.Unknown -> null
 }
 
+// ---- details -----------------------------------------------------------------------
+
 @Composable
-private fun FederationDetailsSection(details: FederationDetails?, checking: Boolean, onShowInvite: () -> Unit) {
+private fun FederationDetailsCard(
+    mint: MintInfo,
+    details: FederationDetails?,
+    onShowInvite: () -> Unit,
+    technicalExpanded: Boolean,
+) {
     val context = LocalContext.current
-    val formatter = remember { AmountFormatter() }
+    val clipboard = LocalClipboardManager.current
+    val confirmationToastController = LocalConfirmationToastController.current
+    val federationId = details?.federationId ?: FedimintSupport.federationId(mint.url)
+    val invite = details?.inviteCode?.takeIf { it.isNotBlank() }
     val tosUrl = safeExternalHttpUrl(details?.tosUrl)
+    val technical = details?.let { federationTechnicalEntries(it) }.orEmpty()
+    val rows = buildList<@Composable () -> Unit> {
+        details?.let { add { CardRow(label = "Network", value = it.network.displayName) } }
+        add {
+            CardRow(
+                label = "Federation ID",
+                value = middleCut(federationId),
+                code = true,
+                trailingIcon = Icons.Outlined.ContentCopy,
+                onClickLabel = "Copy federation ID",
+                onClick = {
+                    clipboard.setText(AnnotatedString(federationId))
+                    confirmationToastController?.show("Copied federation ID")
+                },
+            )
+        }
+        invite?.let {
+            add {
+                CardRow(
+                    label = "Invite code",
+                    value = middleCut(it),
+                    code = true,
+                    trailingIcon = Icons.Outlined.QrCode,
+                    onClickLabel = "Show QR code",
+                    onClick = onShowInvite,
+                )
+            }
+        }
+        tosUrl?.let { url ->
+            add {
+                CardRow(
+                    label = "Terms",
+                    value = externalUrlHost(url) ?: url,
+                    trailingIcon = Icons.AutoMirrored.Outlined.OpenInNew,
+                    onClickLabel = "Open terms",
+                    onClick = { context.openInBrowser(url) },
+                )
+            }
+        }
+        if (technical.isNotEmpty()) add { TechnicalDisclosure(entries = technical, initiallyExpanded = technicalExpanded) }
+    }
     SectionHeader("Details")
-    Column(modifier = Modifier.fillMaxWidth()) {
-        details?.let {
-            InspectorRow(
-                style = InspectorRowStyle.Standard,
-                label = "Network",
-                value = it.network.displayName,
-                leadingIcon = Icons.Outlined.Hub,
-            )
-        }
-        val modules = details?.moduleLabels.orEmpty()
-        if (modules.isNotEmpty() || checking) ModulesRow(modules)
-        details?.inviteCode?.takeIf { it.isNotBlank() }?.let { invite ->
-            InspectorRow(
-                style = InspectorRowStyle.Standard,
-                label = "Invite code",
-                value = middleCut(invite),
-                leadingIcon = Icons.Outlined.QrCode,
-                valueMonospaced = true,
-                onClick = onShowInvite,
-            )
-        }
-        details?.maxBalanceSats?.let {
-            InspectorRow(
-                style = InspectorRowStyle.Standard,
-                label = "Balance limit",
-                value = formatter.formatSats(it),
-                leadingIcon = Icons.Outlined.Savings,
-                valueMonospaced = true,
-            )
-        }
-        details?.maxInvoiceSats?.let {
-            InspectorRow(
-                style = InspectorRowStyle.Standard,
-                label = "Invoice limit",
-                value = formatter.formatSats(it),
-                leadingIcon = Icons.Outlined.Bolt,
-                valueMonospaced = true,
-            )
-        }
-        if (tosUrl != null) {
-            InspectorRow(
-                style = InspectorRowStyle.Standard,
-                label = "Terms of Service",
-                value = externalUrlHost(tosUrl) ?: tosUrl,
-                leadingIcon = Icons.Outlined.Description,
-                onClick = { context.openInBrowser(tosUrl) },
-                trailingIcon = Icons.AutoMirrored.Outlined.OpenInNew,
-            )
+    FederationCard {
+        rows.forEachIndexed { index, row ->
+            if (index > 0) CardDivider()
+            row()
         }
     }
 }
 
-/**
- * Inspector-row metrics with the value as wrapping tags: a federation can run
- * any number of modules, and a joined list would middle-truncate.
- */
-@OptIn(ExperimentalLayoutApi::class)
+/** The SDK and guardian facts behind the cards above, collapsed like the mint screen's NUT list. */
 @Composable
-private fun ModulesRow(labels: List<String>) {
-    Row(
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.default),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.default)
-            .semantics(mergeDescendants = true) {
-                if (labels.isNotEmpty()) contentDescription = "Modules: ${labels.joinToString(", ")}"
-            },
-    ) {
+private fun TechnicalDisclosure(entries: List<TechnicalEntryCopy>, initiallyExpanded: Boolean) {
+    var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
+    val chevronRotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "federationTechChevron")
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.default),
-            modifier = Modifier.heightIn(min = ModuleTagMinHeight),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = CardRowMinHeight)
+                .clickable(role = Role.Button) { expanded = !expanded }
+                .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.default)
+                .semantics(mergeDescendants = true) { stateDescription = if (expanded) "Expanded" else "Collapsed" },
         ) {
+            Text(
+                text = "Technical details",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
             Icon(
-                imageVector = Icons.Outlined.Extension,
+                imageVector = Icons.Outlined.KeyboardArrowDown,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = chevronRotation },
             )
-            Text("Modules", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-            SkeletonValue(loading = labels.isEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.tight, Alignment.End),
-                    verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.tight),
-                ) {
-                    labels.forEach { label ->
+        if (expanded) {
+            Column(
+                modifier = Modifier.padding(
+                    start = CashuTheme.spacing.comfortable,
+                    end = CashuTheme.spacing.comfortable,
+                    bottom = CashuTheme.spacing.comfortable,
+                ),
+                verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.default),
+            ) {
+                entries.forEach { entry ->
+                    Column(
+                        modifier = Modifier.semantics(mergeDescendants = true) {},
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
                         Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelLarge,
+                            text = entry.label,
+                            style = if (entry.monoLabel) {
+                                MaterialTheme.typography.labelMedium.copy(fontFamily = CashuTheme.fonts.mono).withSlashedZero()
+                            } else {
+                                MaterialTheme.typography.labelMedium
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = entry.value,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier
-                                .heightIn(min = ModuleTagMinHeight)
-                                .clip(CapsuleShape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                .padding(horizontal = CashuTheme.spacing.snug, vertical = CashuTheme.spacing.micro),
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -866,92 +918,202 @@ private fun ModulesRow(labels: List<String>) {
     }
 }
 
-/** The raw SDK view behind the rows above, collapsed like the mint screen's NUT list. */
+// ---- card primitives ---------------------------------------------------------------
+
+/** Inset grouped card, as on the Mints list. */
 @Composable
-private fun FederationTechnicalDetails(details: FederationDetails) {
-    var expanded by remember { mutableStateOf(false) }
-    val chevronRotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "federationTechChevron")
-    Column(
+private fun FederationCard(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = CashuTheme.spacing.comfortable)
             .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)),
+        content = content,
+    )
+}
+
+@Composable
+private fun CardDivider(start: Dp = CashuTheme.spacing.comfortable) {
+    HorizontalDivider(
+        thickness = Dp.Hairline,
+        color = MaterialTheme.colorScheme.outlineVariant,
+        modifier = Modifier.padding(start = start),
+    )
+}
+
+/**
+ * Label left, value right, an optional trailing glyph. At large text the
+ * value moves under the label instead of truncating. [code] sets an opaque
+ * string in mono with slashed zeros; [digits] gives tabular figures.
+ */
+@Composable
+private fun CardRow(
+    label: String,
+    value: String,
+    code: Boolean = false,
+    digits: Boolean = false,
+    trailingIcon: ImageVector? = null,
+    onClickLabel: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    val stacked = LocalConfiguration.current.fontScale > 1.3f
+    val valueStyle = MaterialTheme.typography.bodyLarge.let {
+        when {
+            code -> it.copy(fontFamily = CashuTheme.fonts.mono).withSlashedZero()
+            digits -> it.withMonoDigits()
+            else -> it
+        }
+    }
+    val modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = CardRowMinHeight)
+        .then(if (onClick != null) Modifier.clickable(onClickLabel = onClickLabel, onClick = onClick) else Modifier)
+        .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.default)
+        .semantics(mergeDescendants = true) {}
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.default),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.default),
-        ) {
+        if (stacked) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = valueStyle, color = MaterialTheme.colorScheme.onSurface)
+            }
+        } else {
+            Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             Text(
-                text = "Technical details",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.weight(1f))
-            Icon(
-                imageVector = Icons.Outlined.KeyboardArrowDown,
-                contentDescription = if (expanded) "Collapse" else "Expand",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = chevronRotation },
+                text = value,
+                style = valueStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+                modifier = Modifier.weight(1f),
             )
         }
-        if (expanded) {
-            Column(
-                modifier = Modifier.padding(bottom = CashuTheme.spacing.snug),
-                verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug),
-            ) {
-                TechnicalEntry("federation_id", details.federationId)
-                if (details.modules.isNotEmpty()) TechnicalEntry("modules", details.modules.joinToString(", "))
-                TechnicalEntry(
-                    "capabilities",
-                    buildList {
-                        if (details.supportsEcash) add("ecash")
-                        if (details.supportsLightning) add("lightning")
-                        if (details.supportsOnchain) add("onchain")
-                    }.joinToString(", ").ifEmpty { "none" },
+        trailingIcon?.let {
+            Icon(imageVector = it, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+/**
+ * Long guardian prose, clamped with Read more, as the mint screen's About.
+ * Whether it overflows is measured up front, so Read more is there on the
+ * first frame rather than after a layout pass.
+ */
+@Composable
+private fun ClampedText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    collapsedLines: Int = AboutCollapsedLines,
+) {
+    var expanded by remember(text) { mutableStateOf(false) }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val textWidth = with(density) { (maxWidth - CashuTheme.spacing.comfortable * 2).roundToPx() }.coerceAtLeast(0)
+        val overflows = remember(text, style, textWidth, collapsedLines) {
+            measurer.measure(AnnotatedString(text), style, constraints = Constraints(maxWidth = textWidth)).lineCount > collapsedLines
+        }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = text,
+                style = style,
+                color = color,
+                maxLines = if (expanded) Int.MAX_VALUE else collapsedLines,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = CashuTheme.spacing.comfortable),
+            )
+            if (overflows) {
+                GhostButton(
+                    context = TextButtonContext.Compact,
+                    text = if (expanded) "Show less" else "Read more",
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.padding(horizontal = CashuTheme.spacing.default),
                 )
-                details.metaRevision?.let { TechnicalEntry("meta_revision", it.toString()) }
-                details.sessionCount?.let { TechnicalEntry("session_count", it.toString()) }
-                details.guardians.sortedBy { it.peerId }.forEach { TechnicalEntry("peer_${it.peerId}", it.url) }
-                details.meta.toSortedMap().forEach { (key, value) -> TechnicalEntry(key, value) }
             }
         }
     }
 }
 
-@Composable
-private fun TechnicalEntry(key: String, value: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = CashuTheme.spacing.comfortable),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            text = key,
-            style = MaterialTheme.typography.labelSmall.copy(fontFamily = CashuTheme.fonts.mono).withSlashedZero(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-        )
+// ---- copy (pure, unit-tested) -------------------------------------------------------
+
+internal data class FederationLifecycle(val severity: NoticeSeverity, val headline: String, val message: String?)
+
+/**
+ * The one thing about the federation's life worth interrupting for, or null.
+ * Can't-run states first, then the end date (expiry, else the countdown
+ * announcement's end), then an unfinished recovery.
+ */
+internal fun federationLifecycle(
+    details: FederationDetails,
+    nowEpochSeconds: Long,
+    zone: ZoneId,
+    locale: Locale = Locale.getDefault(),
+): FederationLifecycle? {
+    when (val state = details.state) {
+        is FederationState.Quarantined ->
+            return FederationLifecycle(NoticeSeverity.Error, "Couldn't open this federation", state.reason.takeIf { it.isNotBlank() })
+        FederationState.Closed -> return FederationLifecycle(NoticeSeverity.Error, "Closed in this wallet", null)
+        else -> Unit
+    }
+    details.endsAtEpochSeconds?.let { end ->
+        val date = formatFederationDate(end, zone, locale)
+        return if (end <= nowEpochSeconds) {
+            FederationLifecycle(NoticeSeverity.Error, "Ended $date", details.endedMessage)
+        } else {
+            FederationLifecycle(NoticeSeverity.Caution, "Ends $date", details.activePopup(nowEpochSeconds) ?: "Move your funds out before then.")
+        }
+    }
+    if (details.state == FederationState.Recovering) {
+        return FederationLifecycle(NoticeSeverity.Caution, "Restoring your balance", "Payments resume when it's done.")
+    }
+    return null
+}
+
+internal data class GuardianStatusCopy(
+    val title: String,
+    val subtitle: String? = null,
+    val warning: Boolean = false,
+    val showsRetry: Boolean = false,
+    val busy: Boolean = false,
+)
+
+/**
+ * The guardians card's status line, which is also the screen's connection
+ * status: a federation the SDK won't run has nothing to retry, an unreachable
+ * one offers Retry, and otherwise it says who is online.
+ */
+internal fun guardianStatusCopy(details: FederationDetails?, connection: MintConnectionState): GuardianStatusCopy {
+    val count = details?.quorum?.guardians
+    val countTitle = when (count) {
+        null -> "Guardians"
+        1 -> "1 guardian"
+        else -> "$count guardians"
+    }
+    val state = details?.state
+    if (state is FederationState.Quarantined || state == FederationState.Closed) return GuardianStatusCopy(countTitle)
+    if (connection == MintConnectionState.Offline) return GuardianStatusCopy("Couldn't reach the guardians", showsRetry = true)
+    details?.let(::guardianHealthCopy)?.let { return GuardianStatusCopy(it.title, it.subtitle, it.warning) }
+    return when (connection) {
+        MintConnectionState.Checking -> GuardianStatusCopy("Checking guardians…", busy = true)
+        MintConnectionState.Online -> GuardianStatusCopy(countTitle, "Couldn't check who's online")
+        else -> GuardianStatusCopy(countTitle)
     }
 }
 
-internal fun federationSubtitle(guardianCount: Int?): String = when (guardianCount) {
-    null -> "Fedimint federation"
-    1 -> "Fedimint federation · 1 guardian"
-    else -> "Fedimint federation · $guardianCount guardians"
-}
-
-internal data class GuardianHealthCopy(val title: String, val subtitle: String, val warning: Boolean)
+internal data class GuardianHealthCopy(val title: String, val subtitle: String?, val warning: Boolean)
 
 /**
- * The guardian line in words: how many are online, and whether enough are
- * signing for payments to go through. Null until health is known.
+ * How many guardians are online, and anything wrong with signing. Quiet when
+ * all is well; the signing threshold only appears once too few are signing.
+ * Null until health is known.
  */
 internal fun guardianHealthCopy(details: FederationDetails): GuardianHealthCopy? {
     if (!details.healthKnown) return null
@@ -962,27 +1124,61 @@ internal fun guardianHealthCopy(details: FederationDetails): GuardianHealthCopy?
     val threshold = FederationQuorum(total).threshold
     if (total == 1) {
         return when {
-            active == 1 -> GuardianHealthCopy("Guardian online", "Single guardian, no backup", warning = false)
-            online == 1 -> GuardianHealthCopy("Guardian online", "Not signing payments", warning = true)
-            else -> GuardianHealthCopy("Guardian offline", "Payments are paused", warning = true)
+            active == 1 -> GuardianHealthCopy("Guardian online", null, warning = false)
+            online == 1 -> GuardianHealthCopy("Guardian online", "Not signing, payments paused", warning = true)
+            else -> GuardianHealthCopy("Guardian offline", "Payments paused", warning = true)
         }
     }
     val title = if (online == total) "All $total online" else "$online of $total online"
     return when {
-        active < threshold -> GuardianHealthCopy(title, "Too few signing to make payments", warning = true)
-        active == total -> GuardianHealthCopy(title, "Signing normally", warning = false)
-        behind > 0 -> GuardianHealthCopy(title, "$behind behind, payments still work", warning = false)
-        else -> GuardianHealthCopy(title, "Payments still work", warning = false)
+        active < threshold -> GuardianHealthCopy(title, "Payments paused · needs $threshold signing", warning = true)
+        behind > 0 -> GuardianHealthCopy(title, "$behind behind", warning = false)
+        else -> GuardianHealthCopy(title, null, warning = false)
     }
 }
+
+internal data class DetailRowCopy(val label: String, val value: String, val digits: Boolean = false)
+
+/** What you can do here, in product words, and the guardians' limits. */
+internal fun federationPaymentRows(
+    details: FederationDetails,
+    formatter: AmountFormatter,
+    useBitcoinSymbol: Boolean,
+): List<DetailRowCopy> = buildList {
+    val supports = buildList {
+        if (details.supportsLightning) add("Lightning")
+        if (details.supportsEcash) add("Ecash")
+    }
+    if (supports.isNotEmpty()) add(DetailRowCopy("Supports", supports.joinToString(" · ")))
+    details.maxBalanceSats?.let { add(DetailRowCopy("Max balance", formatter.formatSats(it, useBitcoinSymbol = useBitcoinSymbol), digits = true)) }
+    details.maxInvoiceSats?.let { add(DetailRowCopy("Max payment", formatter.formatSats(it, useBitcoinSymbol = useBitcoinSymbol), digits = true)) }
+}
+
+internal data class TechnicalEntryCopy(val label: String, val value: String, val monoLabel: Boolean = false)
+
+/**
+ * Readable facts first (modules as the federation names them, the signing
+ * threshold, consensus progress), then raw scalar metadata by key.
+ */
+internal fun federationTechnicalEntries(details: FederationDetails, locale: Locale = Locale.getDefault()): List<TechnicalEntryCopy> =
+    buildList {
+        if (details.modules.isNotEmpty()) add(TechnicalEntryCopy("Modules", details.modules.joinToString(", ")))
+        details.quorum?.takeIf { it.guardians > 1 }?.let {
+            add(TechnicalEntryCopy("Signing threshold", "${it.threshold} of ${it.guardians}"))
+        }
+        details.sessionCount?.let { add(TechnicalEntryCopy("Consensus session", NumberFormat.getIntegerInstance(locale).format(it))) }
+        details.metaRevision?.let { add(TechnicalEntryCopy("Metadata revision", it.toString())) }
+        details.otherMeta.forEach { (key, value) -> add(TechnicalEntryCopy(key, value, monoLabel = true)) }
+    }
 
 /** The opaque-string convention: `prefix(8)…suffix(6)`, never width-filled. */
 private fun middleCut(value: String): String =
     if (value.length > 16) "${value.take(8)}…${value.takeLast(6)}" else value
 
-private fun formatFederationDate(epochSeconds: Long): String =
+private fun formatFederationDate(epochSeconds: Long, zone: ZoneId, locale: Locale): String =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-        .format(Instant.ofEpochSecond(epochSeconds).atZone(ZoneId.systemDefault()))
+        .withLocale(locale)
+        .format(Instant.ofEpochSecond(epochSeconds).atZone(zone))
 
 private val GuardianLeadingSize = 48.dp
 private val GuardianAvatarSize = 40.dp
@@ -990,6 +1186,7 @@ private val GuardianTextInset = 80.dp // row padding + leading column + gap
 private val GuardianRingStroke = 4.dp
 private val PresenceDotSize = 14.dp
 private const val GuardianRevealMillis = 700
-private val ModuleTagMinHeight = 28.dp
 private val GuardianSegmentGap = 5.dp
 private const val MaxRingSegments = 24
+private val CardRowMinHeight = 52.dp
+private const val AboutCollapsedLines = 3

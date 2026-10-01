@@ -200,7 +200,7 @@ fun InlineNoticeHost(
 
 /** Icon, content colour, container fill — always a Material role pair. */
 @Composable
-private fun noticeColors(severity: NoticeSeverity): Triple<ImageVector, Color, Color> = when (severity) {
+internal fun noticeColors(severity: NoticeSeverity): Triple<ImageVector, Color, Color> = when (severity) {
     NoticeSeverity.Error -> Triple(
         Icons.Filled.Error,
         MaterialTheme.colorScheme.error,

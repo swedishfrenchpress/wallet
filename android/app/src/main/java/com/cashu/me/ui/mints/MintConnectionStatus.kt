@@ -30,7 +30,6 @@ internal fun MintConnectionStatus(
     connection: MintConnectionState,
     showsRecovery: Boolean,
     onRetry: () -> Unit,
-    subject: String = "mint",
 ) {
     val configuration = LocalConfiguration.current
     val stacked = configuration.fontScale > 1.3f || configuration.screenWidthDp < 360
@@ -77,11 +76,11 @@ internal fun MintConnectionStatus(
         }
         if (showsRecovery) {
             if (stacked) {
-                RecoveryText(subject)
+                RecoveryText()
                 RetryButton(checking, onRetry)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    RecoveryText(subject, Modifier.weight(1f))
+                    RecoveryText(Modifier.weight(1f))
                     RetryButton(checking, onRetry)
                 }
             }
@@ -90,9 +89,9 @@ internal fun MintConnectionStatus(
 }
 
 @Composable
-private fun RecoveryText(subject: String, modifier: Modifier = Modifier) {
+private fun RecoveryText(modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text("Couldn't refresh $subject information.", style = MaterialTheme.typography.bodySmall,
+        Text("Couldn't refresh mint information.", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("Showing saved information.", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)

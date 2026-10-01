@@ -1,6 +1,5 @@
 package com.cashu.me.Models
 
-import com.cashu.me.ui.mints.federationSubtitle
 import com.cashu.me.ui.mints.GuardianHealthCopy
 import com.cashu.me.ui.mints.guardianHealthCopy
 import org.junit.Assert.assertEquals
@@ -67,14 +66,7 @@ class FederationDetailsTest {
     }
 
     @Test
-    fun headerSubtitleCountsGuardians() {
-        assertEquals("Fedimint federation", federationSubtitle(null))
-        assertEquals("Fedimint federation · 1 guardian", federationSubtitle(1))
-        assertEquals("Fedimint federation · 4 guardians", federationSubtitle(4))
-    }
-
-    @Test
-    fun healthCopySaysHowManyAreOnlineAndWhetherPaymentsWork() {
+    fun healthCopySaysHowManyAreOnlineAndOnlyWarnsWhenPaymentsStop() {
         fun copy(vararg health: GuardianHealth) = guardianHealthCopy(
             details(roster = health.mapIndexed { i, h -> FederationGuardian(i, "wss://g$i/", health = h) }),
         )
@@ -82,13 +74,55 @@ class FederationDetailsTest {
         val b = GuardianHealth.Behind
         val o = GuardianHealth.Offline
 
-        assertEquals(GuardianHealthCopy("All 4 online", "Signing normally", false), copy(a, a, a, a))
-        assertEquals(GuardianHealthCopy("3 of 4 online", "Payments still work", false), copy(a, a, a, o))
-        assertEquals(GuardianHealthCopy("All 4 online", "1 behind, payments still work", false), copy(a, a, a, b))
-        assertEquals(GuardianHealthCopy("2 of 4 online", "Too few signing to make payments", true), copy(a, a, o, o))
-        assertEquals(GuardianHealthCopy("Guardian online", "Single guardian, no backup", false), copy(a))
-        assertEquals(GuardianHealthCopy("Guardian offline", "Payments are paused", true), copy(o))
+        assertEquals(GuardianHealthCopy("All 4 online", null, false), copy(a, a, a, a))
+        assertEquals(GuardianHealthCopy("3 of 4 online", null, false), copy(a, a, a, o))
+        assertEquals(GuardianHealthCopy("All 4 online", "1 behind", false), copy(a, a, a, b))
+        assertEquals(GuardianHealthCopy("2 of 4 online", "Payments paused · needs 3 signing", true), copy(a, a, o, o))
+        assertEquals(GuardianHealthCopy("All 4 online", "Payments paused · needs 3 signing", true), copy(a, a, b, b))
+        assertEquals(GuardianHealthCopy("Guardian online", null, false), copy(a))
+        assertEquals(GuardianHealthCopy("Guardian online", "Not signing, payments paused", true), copy(b))
+        assertEquals(GuardianHealthCopy("Guardian offline", "Payments paused", true), copy(o))
         assertNull("unknown health has no copy", copy(GuardianHealth.Unknown, GuardianHealth.Unknown))
+    }
+
+    @Test
+    fun aboutPrefersWelcomeFallsBackToPreviewAndCollapsesBlankLines() {
+        assertEquals(
+            "Welcome!\n\nSee the terms.",
+            details(meta = mapOf("welcome_message" to "Welcome!\r\n\r\n\r\n\nSee the terms.  ", "preview_message" to "Preview")).aboutMessage,
+        )
+        assertEquals("Preview", details(meta = mapOf("preview_message" to "Preview")).aboutMessage)
+        assertEquals("Fedi", details(meta = mapOf("fedi:welcome_message" to "Fedi")).aboutMessage)
+        assertNull(details(meta = mapOf("welcome_message" to "   ")).aboutMessage)
+    }
+
+    @Test
+    fun endsAtPrefersExpiryThenThePopupCountdown() {
+        assertEquals(
+            1_900_000_000L,
+            details(meta = mapOf("federation_expiry_timestamp" to "1900000000", "popup_end_timestamp" to "1806969599")).endsAtEpochSeconds,
+        )
+        assertEquals(1_806_969_599L, details(meta = mapOf("popup_end_timestamp" to "1806969599")).endsAtEpochSeconds)
+        assertNull(details().endsAtEpochSeconds)
+    }
+
+    @Test
+    fun otherMetaOmitsSurfacedKeysFediVariantsBlanksAndJson() {
+        val meta = mapOf(
+            "federation_name" to "Bitcoin Principles",
+            "fedi:welcome_message" to "Hi",
+            "max_balance_msats" to "1000000000",
+            "invite_code" to "fed11…",
+            "sites" to """[{"id":"x","url":"https://x"}]""",
+            "default_group_chats" to "[]",
+            "vetted_gateways" to """["03ab"]""",
+            "nested" to """{"a":1}""",
+            "chat_server_domain" to "",
+            "public" to "true",
+            "default_currency" to "USD",
+        )
+
+        assertEquals(listOf("default_currency" to "USD", "public" to "true"), details(meta = meta).otherMeta)
     }
 
     @Test
@@ -133,19 +167,35 @@ class FederationDetailsTest {
         meta: Map<String, String> = emptyMap(),
         roster: List<FederationGuardian> = emptyList(),
         invite: List<FederationGuardian> = emptyList(),
-    ) = FederationDetails(
+    ) = federationDetails(guardianCount, modules, meta, roster, invite)
+}
+
+/** A Running, mainnet-agnostic federation for copy and model tests. */
+internal fun federationDetails(
+    guardianCount: Int? = null,
+    modules: List<String> = emptyList(),
+    meta: Map<String, String> = emptyMap(),
+    roster: List<FederationGuardian> = emptyList(),
+    invite: List<FederationGuardian> = emptyList(),
+    state: FederationState = FederationState.Running,
+    lightning: Boolean = true,
+    ecash: Boolean = true,
+    sessionCount: Long? = null,
+    metaRevision: Long? = null,
+) = FederationDetails(
         federationId = "15db8cb4f1ec8e484d73b889372bec94812580f929e8148b7437d359af422cd3",
         name = "Mutinynet",
         network = FederationNetwork.Signet,
-        state = FederationState.Running,
-        supportsEcash = true,
-        supportsLightning = true,
+        state = state,
+        supportsEcash = ecash,
+        supportsLightning = lightning,
         supportsOnchain = true,
         inviteCode = "fed11…",
         inviteGuardians = invite,
         guardianCount = guardianCount,
         guardianRoster = roster,
+        sessionCount = sessionCount,
         modules = modules,
         meta = meta,
+        metaRevision = metaRevision,
     )
-}
