@@ -60,6 +60,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.launch
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Core.MintDiscoveryManager
 import com.cashu.me.Core.SettingsManager
 import com.cashu.me.Core.Wallet.userFacingWalletMessage
@@ -254,9 +255,14 @@ fun MintsScreen(
     }
 
     pendingRemoval?.let { mint ->
+        val isFederation = FedimintSupport.isFederationKey(mint.url)
         ActionConfirmationSheet(
-            title = "Remove mint?",
-            message = "Remove ${mint.name} from your wallet? Any unspent ecash on this mint will need to be restored from your seed phrase.",
+            title = if (isFederation) "Remove federation?" else "Remove mint?",
+            message = if (isFederation) {
+                "Remove ${mint.name} from your wallet? You can rejoin it later with its invite code."
+            } else {
+                "Remove ${mint.name} from your wallet? Any unspent ecash on this mint will need to be restored from your seed phrase."
+            },
             actionLabel = "Remove",
             destructive = true,
             onConfirm = {

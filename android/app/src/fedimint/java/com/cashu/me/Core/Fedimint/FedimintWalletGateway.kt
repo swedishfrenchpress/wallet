@@ -152,8 +152,10 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
             sdk().forgetFederation(id)
         } catch (error: SdkException) {
             when (error.code()) {
-                ErrorCode.BALANCE_NOT_EMPTY, ErrorCode.PENDING_OPERATIONS ->
-                    throw IllegalStateException("Spend or send this federation's balance before removing it.")
+                // The SDK won't erase a federation that still holds value, but removing it is
+                // the user's call: it leaves the wallet anyway. The SDK has already closed it and
+                // keeps its notes, so rejoining with the invite code brings the balance back.
+                ErrorCode.BALANCE_NOT_EMPTY, ErrorCode.PENDING_OPERATIONS -> Unit
                 else -> throw IllegalStateException(friendly(error), error)
             }
         }
