@@ -112,10 +112,11 @@ fun MintsScreen(
         }
     }
 
-    // Non-blocking NUT-06 refresh — same as iOS MintsListView `.task`.
-    // Does not flip isLoading, so the list stays interactive.
+    // Non-blocking NUT-06 refresh — same as iOS MintsListView `.task`, but on
+    // the wallet's scope so leaving the screen doesn't discard it. Does not
+    // flip isLoading, so the list stays interactive.
     LaunchedEffect(Unit) {
-        walletManager.refreshMintInfo()
+        walletManager.refreshMintInfoInBackground()
     }
 
     val topBarState = rememberTopAppBarState()

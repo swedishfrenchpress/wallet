@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -25,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import org.cashudevkit.PendingMelt
 import org.cashudevkit.QuoteState as CdkQuoteState
@@ -521,50 +523,73 @@ class WalletManager(
     }
 
     /**
-     * Refresh NUT-06 mint metadata for every tracked mint. Does not toggle
-     * [WalletState.isLoading] — call from the Mints screen so the list stays
-     * interactive while names/icons update in place (iOS `refreshMintInfo`).
+     * Refresh NUT-06 mint metadata (federations: their SDK record and external
+     * meta) for every tracked mint. Does not toggle [WalletState.isLoading], so
+     * the list stays interactive while names/icons update in place (iOS
+     * `refreshMintInfo`).
+     *
+     * Mints are fetched concurrently and each result lands as soon as it
+     * arrives. CDK serializes its calls behind one mutex, so a sequential pass
+     * let one busy mint hold back every row behind it, including federations,
+     * which don't share that mutex.
      */
-    suspend fun refreshMintInfo() {
+    suspend fun refreshMintInfo() = coroutineScope {
         val current = mutableState.value.mints
-        if (current.isEmpty()) return
-
-        var changed = false
-        val updated = current.map { mint ->
-            val fetched = runCatching {
-                gateway.ensureWallet(mint.url)
-                gateway.fetchMintInfo(mint.url)
-            }.onFailure {
-                AppLogger.wallet.error("Failed to refresh mint info for ${mint.url}", it)
-            }.getOrNull() ?: return@map mint
-
-            val merged = mint.copy(
-                name = fetched.name.takeUnless { it == "Unknown Mint" } ?: mint.name,
-                description = fetched.description ?: mint.description,
-                iconUrl = fetched.iconUrl ?: mint.iconUrl,
-                units = fetched.units.ifEmpty { mint.units },
-                mintUnits = fetched.mintUnits.ifEmpty { mint.mintUnits },
-                // A live report is authoritative — including a reported-empty
-                // list (the mint dropped a rail); only an unknown (unfetched)
-                // value keeps the previously stored one.
-                supportedMintMethods = fetched.supportedMintMethods ?: mint.supportedMintMethods,
-                supportedMeltMethods = fetched.supportedMeltMethods ?: mint.supportedMeltMethods,
-                // Live NUT-04 advertisement is authoritative, including false
-                // (the mint dropped description support).
-                supportsBolt12MintDescription = fetched.supportsBolt12MintDescription,
-                lastUpdatedEpochMillis = System.currentTimeMillis(),
-                balance = mint.balance,
-                isActive = mint.isActive,
-            )
-            if (merged != mint) {
-                changed = true
-                merged
-            } else {
-                mint
+        if (current.isEmpty()) return@coroutineScope
+        current.forEach { mint ->
+            launch {
+                val fetched = try {
+                    withTimeoutOrNull(MINT_INFO_REFRESH_TIMEOUT_MILLIS) {
+                        gateway.ensureWallet(mint.url)
+                        gateway.fetchMintInfo(mint.url)
+                    }
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (error: Exception) {
+                    AppLogger.wallet.error("Failed to refresh mint info for ${mint.url}", error)
+                    null
+                } ?: return@launch
+                applyRefreshedMintInfo(mint.url, fetched)
             }
         }
+    }
 
-        if (!changed) return
+    /**
+     * Starts [refreshMintInfo] on the wallet's own scope, unless one is already
+     * running. Leaving the Mints screen then no longer discards a refresh that
+     * is waiting on a busy mint.
+     */
+    fun refreshMintInfoInBackground() {
+        if (mintInfoRefresh?.isActive == true) return
+        mintInfoRefresh = scope.launch { refreshMintInfo() }
+    }
+
+    private var mintInfoRefresh: Job? = null
+
+    /** Merge one fetched record into the current list; runs on the main thread, so it never races another update. */
+    private fun applyRefreshedMintInfo(url: String, fetched: MintInfo) {
+        val mints = mutableState.value.mints
+        val mint = mints.firstOrNull { it.url == url } ?: return
+        val merged = mint.copy(
+            name = fetched.name.takeUnless { it == "Unknown Mint" } ?: mint.name,
+            description = fetched.description ?: mint.description,
+            iconUrl = fetched.iconUrl ?: mint.iconUrl,
+            units = fetched.units.ifEmpty { mint.units },
+            mintUnits = fetched.mintUnits.ifEmpty { mint.mintUnits },
+            // A live report is authoritative — including a reported-empty
+            // list (the mint dropped a rail); only an unknown (unfetched)
+            // value keeps the previously stored one.
+            supportedMintMethods = fetched.supportedMintMethods ?: mint.supportedMintMethods,
+            supportedMeltMethods = fetched.supportedMeltMethods ?: mint.supportedMeltMethods,
+            // Live NUT-04 advertisement is authoritative, including false
+            // (the mint dropped description support).
+            supportsBolt12MintDescription = fetched.supportsBolt12MintDescription,
+            lastUpdatedEpochMillis = System.currentTimeMillis(),
+            balance = mint.balance,
+            isActive = mint.isActive,
+        )
+        if (merged == mint) return
+        val updated = mints.map { if (it.url == url) merged else it }
         walletStore.saveMints(updated)
         update {
             copy(
@@ -1833,6 +1858,8 @@ class WalletManager(
     }
 
     private companion object {
+        /** A mint still waiting this long (usually on CDK's busy mutex) is skipped until the next visit. */
+        const val MINT_INFO_REFRESH_TIMEOUT_MILLIS = 30_000L
         // Minimum gap between passive mint-quote sync passes. Equal to the
         // foreground poll interval so the poll drives one pass per interval
         // (iOS `mintQuoteSyncCooldown` parity).
