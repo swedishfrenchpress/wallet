@@ -66,6 +66,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cashu.me.Core.AnimatedUrDecoder
 import com.cashu.me.Core.Fedimint.FedimintFountainDecoder
 import com.cashu.me.Core.Fedimint.FedimintSupport
+import com.cashu.me.Core.Fedimint.QrLoopDecoder
 import com.cashu.me.Core.WalletHaptic
 import com.cashu.me.Core.rememberWalletHaptics
 import com.cashu.me.ui.components.InlineNotice
@@ -90,6 +91,23 @@ internal fun cameraPermissionResultState(
     granted -> CameraPermissionState.Granted
     canShowRationale -> CameraPermissionState.CanRequest
     else -> CameraPermissionState.NeedsSettings
+}
+
+/** Which decoder a scanned code feeds. */
+internal enum class ScannedCodeKind { CashuAnimated, FedimintFountain, QrLoop, Static }
+
+/**
+ * Order matters: anything that parses as a whole payload is never treated as an
+ * animated frame. Base64 Fedimint notes can look like a qrloop frame, so they are
+ * ruled out first; Cashu tokens, requests, invoices and invites can't, because
+ * their first byte decodes outside qrloop's header range.
+ */
+internal fun scannedCodeKind(trimmed: String): ScannedCodeKind = when {
+    trimmed.startsWith("ur:", ignoreCase = true) -> ScannedCodeKind.CashuAnimated
+    !FedimintSupport.isAvailable || FedimintSupport.extractNotes(trimmed) != null -> ScannedCodeKind.Static
+    FedimintFountainDecoder.isFragment(trimmed) -> ScannedCodeKind.FedimintFountain
+    QrLoopDecoder.isFrame(trimmed) -> ScannedCodeKind.QrLoop
+    else -> ScannedCodeKind.Static
 }
 
 data class ScannerQuickAction(
@@ -133,6 +151,7 @@ fun ScannerView(
     var animatedError by remember(sessionId) { mutableStateOf<String?>(null) }
     val animatedUrDecoder = remember(sessionId) { AnimatedUrDecoder() }
     val fedimintDecoder = remember(sessionId) { FedimintFountainDecoder() }
+    val qrLoopDecoder = remember(sessionId) { QrLoopDecoder() }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         cameraPermissionState = cameraPermissionResultState(
             granted = granted,
@@ -230,35 +249,54 @@ fun ScannerView(
             onCode = { code ->
                 if (completedScan) return@CameraPreviewScanner
                 val trimmed = code.trim()
-                if (trimmed.startsWith("ur:", ignoreCase = true)) {
-                    val update = animatedUrDecoder.receivePart(trimmed)
-                    animatedProgress = update.progress
-                    animatedError = update.errorMessage
-                    update.content?.let { decoded ->
-                        completedScan = true
-                        haptics.perform(WalletHaptic.Success)
-                        onScanned(decoded)
+                when (scannedCodeKind(trimmed)) {
+                    ScannedCodeKind.CashuAnimated -> {
+                        val update = animatedUrDecoder.receivePart(trimmed)
+                        animatedProgress = update.progress
+                        animatedError = update.errorMessage
+                        update.content?.let { decoded ->
+                            completedScan = true
+                            haptics.perform(WalletHaptic.Success)
+                            onScanned(decoded)
+                        }
                     }
-                } else if (FedimintSupport.isAvailable &&
-                    FedimintSupport.extractNotes(trimmed) == null &&
-                    FedimintFountainDecoder.isFragment(trimmed)
-                ) {
-                    // Animated Fedimint ecash QR: collect fragments until the notes reassemble.
-                    val message = fedimintDecoder.receive(trimmed)
-                    animatedProgress = fedimintDecoder.progress
-                    val notes = message?.let(FedimintSupport::notesFromFountainMessage)
-                    if (notes != null) {
-                        completedScan = true
-                        haptics.perform(WalletHaptic.Success)
-                        onScanned(notes)
-                    } else if (message != null) {
-                        animatedError = "Unable to decode animated QR."
+                    ScannedCodeKind.FedimintFountain -> {
+                        // Animated Fedimint ecash QR: collect fragments until the notes reassemble.
+                        val message = fedimintDecoder.receive(trimmed)
+                        animatedProgress = fedimintDecoder.progress
+                        val notes = message?.let(FedimintSupport::notesFromFountainMessage)
+                        if (notes != null) {
+                            completedScan = true
+                            haptics.perform(WalletHaptic.Success)
+                            onScanned(notes)
+                        } else if (message != null) {
+                            animatedError = "Unable to decode animated QR."
+                        }
                     }
-                } else {
-                    completedScan = true
-                    animatedUrDecoder.reset()
-                    haptics.perform(WalletHaptic.Success)
-                    onScanned(trimmed)
+                    ScannedCodeKind.QrLoop -> {
+                        // Fedi's animated ecash QR (qrloop): collect frames until the payload checks out.
+                        // Notes come back as notes; any other text is routed like a normal scan.
+                        val payload = qrLoopDecoder.receive(trimmed)
+                        animatedProgress = qrLoopDecoder.progress
+                        if (payload != null) {
+                            val scanned = FedimintSupport.notesFromQrLoopPayload(payload)
+                                ?: runCatching { payload.decodeToString(throwOnInvalidSequence = true).trim() }.getOrNull()
+                            if (scanned != null) {
+                                completedScan = true
+                                haptics.perform(WalletHaptic.Success)
+                                onScanned(scanned)
+                            } else {
+                                qrLoopDecoder.reset()
+                                animatedError = "Unable to decode animated QR."
+                            }
+                        }
+                    }
+                    ScannedCodeKind.Static -> {
+                        completedScan = true
+                        animatedUrDecoder.reset()
+                        haptics.perform(WalletHaptic.Success)
+                        onScanned(trimmed)
+                    }
                 }
             },
             onError = { error -> cameraError = error },

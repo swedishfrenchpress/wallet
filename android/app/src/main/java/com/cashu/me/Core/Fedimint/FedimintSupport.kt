@@ -62,6 +62,18 @@ object FedimintSupport {
         return FedimintFountainDecoder.notesCandidates(message).firstOrNull { parser(it) != null }
     }
 
+    /**
+     * Turns a reassembled qrloop payload from Fedi back into notes. Fedi frames
+     * `fedimint…` notes as their UTF-8 text but base64 notes as the raw bytes
+     * behind the base64 (its `ecashToQrFrameData`), so both forms are tried.
+     */
+    fun notesFromQrLoopPayload(payload: ByteArray): String? {
+        runCatching { payload.decodeToString(throwOnInvalidSequence = true) }.getOrNull()
+            ?.let(::extractNotes)
+            ?.let { return it }
+        return notesFromFountainMessage(payload)
+    }
+
     /** Stand-in `TokenInfo.mint` until the notes are matched to a joined federation. */
     const val NOTES_MINT_PLACEHOLDER = "Fedimint"
 
