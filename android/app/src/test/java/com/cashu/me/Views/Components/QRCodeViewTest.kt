@@ -1,7 +1,12 @@
 package com.cashu.me.Views.Components
 
+import com.cashu.me.Core.Fedimint.FedimintSupport
+import com.cashu.me.Core.Fedimint.QrLoopDecoder
+import java.util.Base64
+import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -50,5 +55,28 @@ class QRCodeViewTest {
         assertEquals(content, sequence.firstFrame)
         assertEquals(1, sequence.totalParts)
         assertNull(sequence.nextFrame)
+    }
+
+    @Test
+    fun longFedimintNotesAnimateAsQrLoopFramesCarryingTheNotesText() {
+        val notes = Base64.getEncoder().encodeToString(Random(5).nextBytes(2026))
+        val previous = FedimintSupport.notesParser
+        FedimintSupport.notesParser = { raw -> if (raw == notes) 2L else null }
+        try {
+            val sequence = qrFrameSequence(content = notes, staticOnly = false, chunkSize = QRSize.Large.chunkSize)
+            assertTrue(sequence.totalParts > 1)
+            val next = sequence.nextFrame!!
+            val shown = listOf(sequence.firstFrame) + List(sequence.totalParts * 2) { next() }
+            assertTrue(shown.all(QrLoopDecoder::isFrame))
+            // The animation cycles: after one full loop it is back on the first frame.
+            assertEquals(sequence.firstFrame, shown[sequence.totalParts])
+
+            val decoder = QrLoopDecoder()
+            val payload = shown.firstNotNullOfOrNull(decoder::receive)!!
+            assertEquals(notes, payload.decodeToString())
+            assertEquals(notes, FedimintSupport.notesFromQrLoopPayload(payload))
+        } finally {
+            FedimintSupport.notesParser = previous
+        }
     }
 }

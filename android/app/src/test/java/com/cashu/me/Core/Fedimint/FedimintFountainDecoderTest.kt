@@ -1,6 +1,7 @@
 package com.cashu.me.Core.Fedimint
 
-import java.security.MessageDigest
+import com.cashu.me.Core.Fedimint.FedimintFountainFixture.frame
+import com.cashu.me.Core.Fedimint.FedimintFountainFixture.sourceFrames
 import org.junit.Test
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -9,23 +10,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 
 class FedimintFountainDecoderTest {
-    private fun u32(value: Long) = ByteArray(4) { (value ushr (8 * (3 - it))).toByte() }
-
-    private fun frame(message: ByteArray, simple: Int, index: Long, data: ByteArray): String {
-        val checksum = MessageDigest.getInstance("SHA-256").digest(message).copyOf(4)
-        val bytes = u32(simple.toLong()) + u32(message.size.toLong()) + checksum + u32(index) +
-            byteArrayOf(data.size.toByte()) + data
-        return "fedimint" + FedimintFountainDecoder.base32Encode(bytes)
-    }
-
-    private fun sourceFrames(message: ByteArray, slices: Int): List<String> {
-        val length = (message.size + slices - 1) / slices
-        val padded = message.copyOf(length * slices)
-        return (0 until slices).map { i ->
-            frame(message, slices, i.toLong(), padded.copyOfRange(i * length, (i + 1) * length))
-        }
-    }
-
     @Test
     fun chaCha20MatchesTheRfcKeystreamForAZeroKey() {
         val block = ChaCha20Rng(ByteArray(32)).generateBlock(0)
@@ -71,19 +55,6 @@ class FedimintFountainDecoderTest {
         assertTrue(FedimintFountainDecoder.isFragment(sourceFrames(message, 1)[0]))
         assertFalse(FedimintFountainDecoder.isFragment("fedimint:notafragment"))
         assertFalse(FedimintFountainDecoder.isFragment("lnbc1..."))
-    }
-
-    @Test
-    fun encoderFramesRoundTripThroughTheDecoderEvenWhenTheLoopIsJoinedMidway() {
-        val message = ByteArray(1500) { (it * 31 + 7).toByte() }
-        val encoder = FedimintFountainEncoder(message, maxFragmentBytes = 400)
-        assertTrue(encoder.sourceCount > 1)
-        // A scanner that starts mid-loop still completes once the loop wraps around.
-        repeat(2) { encoder.nextFrame() }
-        val decoder = FedimintFountainDecoder()
-        var out: ByteArray? = null
-        repeat(encoder.sourceCount * 2) { if (out == null) out = decoder.receive(encoder.nextFrame()) }
-        assertArrayEquals(message, out)
     }
 
     @Test

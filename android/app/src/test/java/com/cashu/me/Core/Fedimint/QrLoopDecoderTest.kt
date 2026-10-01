@@ -121,7 +121,7 @@ class QrLoopDecoderTest {
     @Test
     fun recognisesQrLoopFramesButNotOtherScannableText() {
         FRAMES.forEach { assertTrue(it, QrLoopDecoder.isFrame(it)) }
-        val fountainFragment = FedimintFountainEncoder(ByteArray(300) { it.toByte() }, maxFragmentBytes = 100).nextFrame()
+        val fountainFragment = FedimintFountainFixture.sourceFrames(ByteArray(300) { it.toByte() }, slices = 3)[0]
         listOf(
             "cashuAeyJ0b2tlbiI6W3sibWludCI6Imh0dHBzOi8vODMzMy5zcGFjZTozMzM4IiwicHJvb2ZzIjpbXX1dfQ",
             "cashuBpGF0gaJhaUgArSaMTR9YJmFwgaNhYQFhc3hAOWE2ZGJiODQ3YmQyMzJiYTc2ZGIwZGYxOTcyMTZiMjlkM2I4Y2MxNDU1M2Nk",

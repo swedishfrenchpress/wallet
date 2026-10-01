@@ -1,6 +1,6 @@
 package com.cashu.me.Views.Components
 
-import com.cashu.me.Core.Fedimint.FedimintFountainEncoder
+import com.cashu.me.Core.Fedimint.FedimintFountainFixture
 import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Core.Fedimint.QrLoopDecoder
 import com.cashu.me.Core.Fedimint.QrLoopFixture
@@ -17,7 +17,7 @@ class ScannedCodeKindTest {
         ByteArray(60) { (it * 13 + 7).toByte() }.also { it[0] = 2; it[1] = 0; it[2] = 1; it[3] = 0; it[4] = 0 },
     )
     private val fountainFragment =
-        FedimintFountainEncoder(ByteArray(300) { it.toByte() }, maxFragmentBytes = 100).nextFrame()
+        FedimintFountainFixture.sourceFrames(ByteArray(300) { it.toByte() }, slices = 3)[0]
     private val cashuPayloads = listOf(
         "cashuAeyJ0b2tlbiI6W3sibWludCI6Imh0dHBzOi8vODMzMy5zcGFjZTozMzM4IiwicHJvb2ZzIjpbXX1dfQ",
         "cashuBpGF0gaJhaUgArSaMTR9YJmFwgaNhYQFhc3hAOWE2ZGJiODQ3YmQyMzJiYTc2ZGIwZGYxOTcyMTZiMjlkM2I4Y2MxNDU1M2Nk",

@@ -28,7 +28,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.delay
-import com.cashu.me.Core.Fedimint.FedimintFountainEncoder
+import com.cashu.me.Core.Fedimint.QrLoopEncoder
 import com.cashu.me.Core.Fedimint.FedimintSupport
 import org.cashudevkit.Token as CdkToken
 
@@ -56,7 +56,7 @@ enum class QRSize(val label: String, val chunkSize: Int) {
     }
 }
 
-/** Notes longer than this animate instead of packing into one dense QR. Fedi only scans whole notes, so keep typical sends static. */
+/** Notes longer than this animate (as qrloop frames) instead of packing into one dense QR. */
 private const val FEDIMINT_STATIC_QR_LIMIT = 1500
 
 internal data class QRFrameSequence(
@@ -156,16 +156,24 @@ internal fun qrFrameSequence(
     if (staticOnly || content.length <= chunkSize) {
         return QRFrameSequence(firstFrame = content, totalParts = 1, nextFrame = null)
     }
-    // Fedimint notes: a single QR only scans reliably when short, so long notes animate
-    // as fedimint-fountain frames that Fedimint wallets (and this app's scanner) reassemble.
-    if (content.length > FEDIMINT_STATIC_QR_LIMIT && FedimintSupport.extractNotes(content) != null) {
-        val encoder = FedimintFountainEncoder.forNotes(content, maxFragmentBytes = chunkSize * 2)
-        if (encoder != null && encoder.sourceCount > 1) {
-            return QRFrameSequence(
-                firstFrame = encoder.nextFrame(),
-                totalParts = encoder.sourceCount,
-                nextFrame = { encoder.nextFrame() },
-            )
+    // Fedimint notes: a single QR only scans reliably when short, so long notes animate as
+    // qrloop frames, the format Fedi scans. The payload is the notes text, which Fedi,
+    // Fedimint's ecash app and this app's scanner all turn straight back into notes.
+    if (content.length > FEDIMINT_STATIC_QR_LIMIT) {
+        val notes = FedimintSupport.extractNotes(content)
+        if (notes != null) {
+            val frames = QrLoopEncoder.frames(notes.encodeToByteArray(), dataSize = chunkSize)
+            if (frames.size > 1) {
+                var index = 0
+                return QRFrameSequence(
+                    firstFrame = frames[0],
+                    totalParts = frames.size,
+                    nextFrame = {
+                        index = (index + 1) % frames.size
+                        frames[index]
+                    },
+                )
+            }
         }
     }
     return runCatching {
