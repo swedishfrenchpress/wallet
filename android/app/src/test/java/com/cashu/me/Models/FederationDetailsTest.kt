@@ -1,7 +1,8 @@
 package com.cashu.me.Models
 
 import com.cashu.me.ui.mints.federationSubtitle
-import com.cashu.me.ui.mints.quorumSummary
+import com.cashu.me.ui.mints.quorumSubtitle
+import com.cashu.me.ui.mints.quorumTitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -67,10 +68,10 @@ class FederationDetailsTest {
 
     @Test
     fun copyDescribesTheQuorum() {
-        assertEquals("Run by a single guardian, with no backup if it goes offline.", quorumSummary(FederationQuorum(1)))
-        assertEquals("All 3 guardians must be online to sign.", quorumSummary(FederationQuorum(3)))
-        assertEquals("Keeps working with 1 guardian offline.", quorumSummary(FederationQuorum(4)))
-        assertEquals("Keeps working with up to 2 guardians offline.", quorumSummary(FederationQuorum(7)))
+        assertEquals("Single guardian" to "No backup if it goes offline", quorumTitle(FederationQuorum(1)) to quorumSubtitle(FederationQuorum(1)))
+        assertEquals("All 3 must agree" to "Stops if any goes offline", quorumTitle(FederationQuorum(3)) to quorumSubtitle(FederationQuorum(3)))
+        assertEquals("3 of 4 must agree" to "Keeps working with 1 offline", quorumTitle(FederationQuorum(4)) to quorumSubtitle(FederationQuorum(4)))
+        assertEquals("5 of 7 must agree" to "Keeps working with up to 2 offline", quorumTitle(FederationQuorum(7)) to quorumSubtitle(FederationQuorum(7)))
         assertEquals("Fedimint federation", federationSubtitle(null))
         assertEquals("Fedimint federation · 1 guardian", federationSubtitle(1))
         assertEquals("Fedimint federation · 4 guardians", federationSubtitle(4))

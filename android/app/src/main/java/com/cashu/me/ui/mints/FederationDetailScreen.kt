@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,9 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,7 +37,6 @@ import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.QrCode
 import androidx.compose.material.icons.outlined.Savings
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -109,6 +105,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlinx.coroutines.CancellationException
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.unit.Dp
 
 /**
  * Detail screen for a Fedimint federation (a mint keyed `fedimint:<id>`).
@@ -512,8 +519,9 @@ private fun FederationNotices(details: FederationDetails?, nowEpochSeconds: Long
 }
 
 /**
- * The quorum card (how many guardians, how many must agree, how many may be
- * offline) followed by the guardians the invite names, each with its endpoint.
+ * One inset group, Settings style: the quorum (a segmented ring around the
+ * guardian count, the signing rule in one sentence) above the guardians the
+ * invite names. Tapping a guardian copies its address.
  */
 @Composable
 private fun GuardiansSection(details: FederationDetails?, checking: Boolean) {
@@ -522,25 +530,30 @@ private fun GuardiansSection(details: FederationDetails?, checking: Boolean) {
     val quorum = details?.quorum
     val listed = details?.inviteGuardians.orEmpty()
     SectionHeader("Guardians")
-    QuorumCard(quorum = quorum, checking = checking)
-    if (listed.isNotEmpty()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(top = CashuTheme.spacing.micro)) {
-            listed.forEach { guardian ->
-                GuardianRow(guardian) {
-                    clipboard.setText(AnnotatedString(guardian.url))
-                    confirmationToastController?.show("Copied guardian address")
-                }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = CashuTheme.spacing.comfortable)
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)),
+    ) {
+        QuorumRow(quorum = quorum, checking = checking)
+        listed.forEach { guardian ->
+            HorizontalDivider(
+                thickness = Dp.Hairline,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(start = GuardianTextInset),
+            )
+            GuardianRow(guardian) {
+                clipboard.setText(AnnotatedString(guardian.url))
+                confirmationToastController?.show("Copied guardian address")
             }
         }
     }
-    val listedNote = when {
-        quorum == null || listed.isEmpty() -> null
-        listed.size >= quorum.guardians -> null
-        else -> "The invite code lists ${listed.size} of ${quorum.guardians} guardian addresses."
-    }
-    listedNote?.let {
+    if (quorum != null && listed.isNotEmpty() && listed.size < quorum.guardians) {
         Text(
-            text = it,
+            text = "The invite code shares ${listed.size} of ${quorum.guardians} guardian addresses.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = CashuTheme.spacing.comfortable),
@@ -548,31 +561,134 @@ private fun GuardiansSection(details: FederationDetails?, checking: Boolean) {
     }
 }
 
-/** List-row shape of the Mints list: glyph, name, full endpoint host; tap copies the address. */
+@Composable
+private fun QuorumRow(quorum: FederationQuorum?, checking: Boolean) {
+    val title = when {
+        quorum != null -> quorumTitle(quorum)
+        checking -> "Asking the guardians…"
+        else -> "Quorum unknown"
+    }
+    val subtitle = when {
+        quorum != null -> quorumSubtitle(quorum)
+        checking -> null
+        else -> "The guardians didn't respond."
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.comfortable),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(CashuTheme.spacing.comfortable)
+            .semantics(mergeDescendants = true) {
+                quorum?.let { contentDescription = quorumAccessibilityLabel(it) }
+            },
+    ) {
+        QuorumRing(quorum = quorum, modifier = Modifier.size(GuardianLeadingSize))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (quorum != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            subtitle?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/**
+ * A ring with one arc per guardian around the count: the signing threshold
+ * in full ink, the spares the federation can lose in faint ink. It draws in
+ * clockwise once the count arrives. Very large federations collapse to two
+ * arcs (threshold, spares) so the ring never turns into a dashed line.
+ */
+@Composable
+private fun QuorumRing(quorum: FederationQuorum?, modifier: Modifier = Modifier) {
+    val still = LocalInspectionMode.current
+    val reveal = remember { Animatable(if (still) 1f else 0f) }
+    LaunchedEffect(quorum?.guardians) {
+        if (quorum != null && !still) reveal.animateTo(1f, tween(QuorumRevealMillis, easing = FastOutSlowInEasing))
+    }
+    val strong = MaterialTheme.colorScheme.onSurface
+    val faint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+    val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val strokePx = QuorumRingStroke.toPx()
+            val radius = (size.minDimension - strokePx) / 2
+            val topLeft = Offset(center.x - radius, center.y - radius)
+            val arcSize = Size(radius * 2, radius * 2)
+            if (quorum == null) {
+                drawArc(track, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(strokePx))
+                return@Canvas
+            }
+            val spans: List<Pair<Float, Boolean>> = when {
+                quorum.guardians == 1 -> listOf(1f to true)
+                quorum.guardians <= MaxQuorumSegments -> List(quorum.guardians) { 1f to (it < quorum.threshold) }
+                else -> listOfNotNull(
+                    quorum.threshold.toFloat() to true,
+                    quorum.tolerated.takeIf { it > 0 }?.let { it.toFloat() to false },
+                )
+            }
+            val total = spans.sumOf { it.first.toDouble() }.toFloat()
+            // Round caps overhang each end by half the stroke; leave a visible gap past them.
+            val capDegrees = Math.toDegrees((strokePx / 2 / radius).toDouble()).toFloat()
+            val gapDegrees = if (spans.size == 1) 0f else Math.toDegrees((QuorumSegmentGap.toPx() / radius).toDouble()).toFloat() + capDegrees * 2
+            val drawn = 360f * reveal.value
+            var start = -90f
+            spans.forEach { (weight, signing) ->
+                val slot = 360f * weight / total
+                val sweep = (slot - gapDegrees).coerceAtLeast(0.5f)
+                val visible = (drawn - (start + 90f)).coerceIn(0f, sweep)
+                if (visible > 0f) {
+                    drawArc(
+                        color = if (signing) strong else faint,
+                        startAngle = start + gapDegrees / 2,
+                        sweepAngle = if (spans.size == 1) visible.coerceAtMost(360f) else visible,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(strokePx, cap = if (spans.size == 1) StrokeCap.Butt else StrokeCap.Round),
+                    )
+                }
+                start += slot
+            }
+        }
+        Text(
+            text = quorum?.guardians?.toString() ?: "–",
+            style = MaterialTheme.typography.titleMedium.withMonoDigits(),
+            color = if (quorum != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Contact-row shape: numbered avatar, name, endpoint host. */
 @Composable
 private fun GuardianRow(guardian: FederationGuardian, onCopy: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.default),
+        horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.comfortable),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clickable(onClickLabel = "Copy guardian address", onClick = onCopy)
-            .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.snug),
+            .clickable(onClickLabel = "Copy address", onClick = onCopy)
+            .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.default),
     ) {
-        Box(
-            modifier = Modifier
-                .size(GuardianGlyphSize)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Shield,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
+        Box(modifier = Modifier.size(GuardianLeadingSize), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(GuardianAvatarSize)
+                    .clip(CircleShape)
+                    // Ink tint, not a container tone: reads on the card in both themes.
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "${guardian.peerId + 1}",
+                    style = MaterialTheme.typography.titleSmall.withMonoDigits(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
@@ -588,121 +704,7 @@ private fun GuardianRow(guardian: FederationGuardian, onCopy: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Icon(
-            imageVector = Icons.Outlined.ContentCopy,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
-        )
     }
-}
-
-@Composable
-private fun QuorumCard(quorum: FederationQuorum?, checking: Boolean) {
-    val summary = quorum?.let(::quorumSummary)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = CashuTheme.spacing.comfortable)
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(CashuTheme.spacing.comfortable)
-            .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
-            .semantics(mergeDescendants = true) {
-                summary?.let { contentDescription = quorumAccessibilityLabel(it, quorum) }
-            },
-        verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.default),
-    ) {
-        val configuration = LocalConfiguration.current
-        val stacked = configuration.fontScale > 1.3f || configuration.screenWidthDp < 360
-        val count: @Composable () -> Unit = {
-            Column {
-                SkeletonValue(loading = quorum == null && checking) {
-                    Text(
-                        text = quorum?.guardians?.toString() ?: "–",
-                        style = MaterialTheme.typography.headlineMedium.withMonoDigits(),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-                Text(
-                    text = if (quorum?.guardians == 1) "Guardian" else "Guardians",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        // A lone guardian is its own threshold; "1 of 1 must agree" says nothing.
-        val threshold: (@Composable () -> Unit)? = quorum?.takeIf { it.guardians > 1 }?.let { known ->
-            {
-                Column(horizontalAlignment = if (stacked) Alignment.Start else Alignment.End) {
-                    Text(
-                        text = "${known.threshold} of ${known.guardians}",
-                        style = MaterialTheme.typography.titleMedium.withMonoDigits(),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = "must agree",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-        if (stacked) {
-            Column(verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug)) {
-                count()
-                threshold?.invoke()
-            }
-        } else {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                Box(modifier = Modifier.weight(1f)) { count() }
-                threshold?.invoke()
-            }
-        }
-        QuorumBar(quorum = quorum)
-        Text(
-            text = summary ?: if (checking) "Asking the guardians…" else "Guardian details appear when the federation is reachable.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/**
- * One segment per guardian: filled for the signing threshold, outlined for the
- * spares the federation can lose. Large federations collapse to two spans.
- */
-@Composable
-private fun QuorumBar(quorum: FederationQuorum?) {
-    val filled = MaterialTheme.colorScheme.onSurface
-    val spare = MaterialTheme.colorScheme.onSurfaceVariant
-    val empty = MaterialTheme.colorScheme.surfaceContainerHighest
-    Row(
-        modifier = Modifier.fillMaxWidth().height(QuorumBarHeight),
-        horizontalArrangement = Arrangement.spacedBy(QuorumSegmentGap),
-    ) {
-        when {
-            quorum == null -> QuorumSegment(1f, color = empty)
-            quorum.guardians <= MaxQuorumSegments -> repeat(quorum.guardians) { index ->
-                QuorumSegment(1f, color = filled, spareOutline = spare.takeIf { index >= quorum.threshold })
-            }
-            else -> {
-                QuorumSegment(quorum.threshold.toFloat(), color = filled)
-                if (quorum.tolerated > 0) QuorumSegment(quorum.tolerated.toFloat(), color = filled, spareOutline = spare)
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.QuorumSegment(weight: Float, color: Color, spareOutline: Color? = null) {
-    Box(
-        modifier = Modifier
-            .weight(weight)
-            .fillMaxHeight()
-            .clip(CapsuleShape)
-            .then(if (spareOutline != null) Modifier.border(1.dp, spareOutline, CapsuleShape) else Modifier.background(color)),
-    )
 }
 
 @Composable
@@ -897,15 +899,21 @@ internal fun federationSubtitle(guardianCount: Int?): String = when (guardianCou
     else -> "Fedimint federation · $guardianCount guardians"
 }
 
-internal fun quorumSummary(quorum: FederationQuorum): String = when {
-    quorum.guardians == 1 -> "Run by a single guardian, with no backup if it goes offline."
-    quorum.tolerated == 0 -> "All ${quorum.guardians} guardians must be online to sign."
-    quorum.tolerated == 1 -> "Keeps working with 1 guardian offline."
-    else -> "Keeps working with up to ${quorum.tolerated} guardians offline."
+internal fun quorumTitle(quorum: FederationQuorum): String = when {
+    quorum.guardians == 1 -> "Single guardian"
+    quorum.tolerated == 0 -> "All ${quorum.guardians} must agree"
+    else -> "${quorum.threshold} of ${quorum.guardians} must agree"
 }
 
-private fun quorumAccessibilityLabel(summary: String, quorum: FederationQuorum): String =
-    "${quorum.guardians} guardians, ${quorum.threshold} must agree. $summary"
+internal fun quorumSubtitle(quorum: FederationQuorum): String = when {
+    quorum.guardians == 1 -> "No backup if it goes offline"
+    quorum.tolerated == 0 -> "Stops if any goes offline"
+    quorum.tolerated == 1 -> "Keeps working with 1 offline"
+    else -> "Keeps working with up to ${quorum.tolerated} offline"
+}
+
+private fun quorumAccessibilityLabel(quorum: FederationQuorum): String =
+    "${quorum.guardians} ${if (quorum.guardians == 1) "guardian" else "guardians"}. ${quorumTitle(quorum)}. ${quorumSubtitle(quorum)}."
 
 private fun guardianLabel(guardian: FederationGuardian): String = "Guardian ${guardian.peerId + 1}"
 
@@ -917,8 +925,11 @@ private fun formatFederationDate(epochSeconds: Long): String =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
         .format(Instant.ofEpochSecond(epochSeconds).atZone(ZoneId.systemDefault()))
 
-private val QuorumBarHeight = 8.dp
-private val GuardianGlyphSize = 40.dp
+private val GuardianLeadingSize = 48.dp
+private val GuardianAvatarSize = 40.dp
+private val GuardianTextInset = 80.dp // row padding + leading column + gap
+private val QuorumRingStroke = 4.dp
+private const val QuorumRevealMillis = 700
 private val ModuleTagMinHeight = 28.dp
-private val QuorumSegmentGap = 4.dp
-private const val MaxQuorumSegments = 16
+private val QuorumSegmentGap = 5.dp
+private const val MaxQuorumSegments = 24
