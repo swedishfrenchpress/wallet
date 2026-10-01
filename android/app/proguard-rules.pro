@@ -5,3 +5,5 @@
 -dontwarn org.cashudevkit.**
 -dontwarn com.sun.jna.**
 -dontwarn java.awt.**
+-keep class org.fedimint.** { *; }
+-dontwarn org.fedimint.**

@@ -75,6 +75,14 @@ android {
         debug {
             applicationIdSuffix = ".debug"
         }
+        // Release optimizations, debug-signed and on the debug application id, so it
+        // installs over a debug build (keeps the wallet) for on-device speed checks.
+        create("fast") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
     }
 
     compileOptions {
