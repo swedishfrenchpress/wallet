@@ -26,12 +26,29 @@ class FederationProfileCopyTest {
         now: Long = 1_790_000_000,
     ) = federationLifecycle(federationDetails(meta = meta, state = state), now, ZoneOffset.UTC, Locale.US)
 
+    private fun endPill(meta: Map<String, String>, now: Long = 1_790_000_000) =
+        federationEndPill(federationDetails(meta = meta), now, ZoneOffset.UTC, Locale.US)
+
     @Test
-    fun lifecycleShowsTheEndDateInTheHeadline() {
+    fun anUpcomingEndIsAHeaderPillNotACard() {
+        assertEquals("Ends Apr 5, 2027", endPill(bitcoinPrinciples))
+        assertNull(lifecycle(bitcoinPrinciples))
+        assertNull(endPill(bitcoinPrinciples, now = 1_806_969_600))
+        assertNull(endPill(emptyMap()))
+    }
+
+    @Test
+    fun theCountdownMessageLeadsAboutWhileItRuns() {
+        val about = mapOf("welcome_message" to "Welcome to Bitcoin Principles.")
+        fun aboutText(meta: Map<String, String>, now: Long = 1_790_000_000) =
+            federationAboutText(federationDetails(meta = meta), now)
         assertEquals(
-            FederationLifecycle(NoticeSeverity.Caution, "Ends Apr 5, 2027", "This community will end at the specified date."),
-            lifecycle(bitcoinPrinciples),
+            "This community will end at the specified date.\n\nWelcome to Bitcoin Principles.",
+            aboutText(bitcoinPrinciples + about),
         )
+        assertEquals("This community will end at the specified date.", aboutText(bitcoinPrinciples))
+        assertEquals("Welcome to Bitcoin Principles.", aboutText(bitcoinPrinciples + about, now = 1_806_969_600))
+        assertNull(aboutText(emptyMap()))
     }
 
     @Test
@@ -47,15 +64,13 @@ class FederationProfileCopyTest {
     }
 
     @Test
-    fun lifecycleExpiryBeatsThePopupEndAndHasAFallbackMessage() {
+    fun expiryBeatsThePopupEnd() {
         val expiry = mapOf("federation_expiry_timestamp" to "1798761600") // 2027-01-01T00:00:00Z
+        assertEquals("Ends Jan 1, 2027", endPill(bitcoinPrinciples + expiry))
+        assertEquals("Ends Jan 1, 2027", endPill(expiry))
         assertEquals(
-            FederationLifecycle(NoticeSeverity.Caution, "Ends Jan 1, 2027", "This community will end at the specified date."),
-            lifecycle(bitcoinPrinciples + expiry),
-        )
-        assertEquals(
-            FederationLifecycle(NoticeSeverity.Caution, "Ends Jan 1, 2027", "Move your funds out before then."),
-            lifecycle(expiry),
+            FederationLifecycle(NoticeSeverity.Error, "Ended Jan 1, 2027", null),
+            lifecycle(expiry, now = 1_798_761_600),
         )
     }
 
@@ -74,7 +89,7 @@ class FederationProfileCopyTest {
             FederationLifecycle(NoticeSeverity.Caution, "Restoring your balance", "Payments resume when it's done."),
             lifecycle(state = FederationState.Recovering),
         )
-        assertEquals("Ends Apr 5, 2027", lifecycle(bitcoinPrinciples, FederationState.Recovering)?.headline)
+        assertEquals("Restoring your balance", lifecycle(bitcoinPrinciples, FederationState.Recovering)?.headline)
         assertNull(lifecycle())
     }
 

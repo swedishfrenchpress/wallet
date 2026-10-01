@@ -147,8 +147,8 @@ import androidx.compose.ui.platform.LocalDensity
 /**
  * Profile of a Fedimint federation (a mint keyed `fedimint:<id>`).
  *
- * A hero (who it is, what you hold there), then inset cards in reading
- * order: a lifecycle card when the federation is ending or can't run, the
+ * A hero (who it is, when it ends, what you hold there), then inset cards in
+ * reading order: a lifecycle card when the federation can't run, the
  * guardians (the one place connection status lives), what the federation
  * says about itself, what you can do with it, and the details behind it.
  * A local snapshot renders at once and offline; the guardians' view replaces
@@ -332,18 +332,21 @@ internal fun FederationDetailBody(
 ) {
     val formatter = remember { AmountFormatter() }
     val lifecycle = details?.let { federationLifecycle(it, nowEpochSeconds, zone) }
+    val endPill = details?.let { federationEndPill(it, nowEpochSeconds, zone) }
+    val about = details?.let { federationAboutText(it, nowEpochSeconds) }
     val paymentRows = details?.let { federationPaymentRows(it, formatter, useBitcoinSymbol) }.orEmpty()
     Column(modifier = Modifier.fillMaxWidth()) {
         FederationHero(
             mint = mint,
             details = details,
             isActive = isActive,
+            endPill = endPill,
             balance = balance,
             onTitleScrolledAway = onTitleScrolledAway,
         )
 
         // External meta (where Fedi federations publish an end date) can land
-        // with the live read, after the first frame; let the card slide in.
+        // with the live read, after the first frame; let an "Ended" card slide in.
         AnimatedVisibility(
             visible = lifecycle != null,
             enter = expandVertically() + fadeIn(),
@@ -354,7 +357,7 @@ internal fun FederationDetailBody(
 
         GuardiansCard(details = details, status = guardianStatusCopy(details, connection), onRetry = onRetry)
 
-        details?.aboutMessage?.let { about ->
+        about?.let { about ->
             SectionHeader("About")
             FederationCard {
                 ClampedText(
@@ -397,6 +400,7 @@ private fun FederationHero(
     mint: MintInfo,
     details: FederationDetails?,
     isActive: Boolean,
+    endPill: String?,
     balance: AmountDisplayText,
     onTitleScrolledAway: (Boolean) -> Unit,
 ) {
@@ -432,7 +436,7 @@ private fun FederationHero(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (isActive || network != null) {
+        if (isActive || network != null || endPill != null) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(CashuTheme.spacing.snug),
@@ -448,6 +452,14 @@ private fun FederationHero(
                     // Test-network federations hold worthless coins; say so up front.
                     HeaderPill(
                         text = network.displayName,
+                        container = CashuTheme.colors.pendingContainer,
+                        content = CashuTheme.colors.onPendingContainer,
+                    )
+                }
+                if (endPill != null) {
+                    // The guardians' own words about the end lead the About section.
+                    HeaderPill(
+                        text = endPill,
                         container = CashuTheme.colors.pendingContainer,
                         content = CashuTheme.colors.onPendingContainer,
                     )
@@ -1048,8 +1060,8 @@ internal data class FederationLifecycle(val severity: NoticeSeverity, val headli
 
 /**
  * The one thing about the federation's life worth interrupting for, or null.
- * Can't-run states first, then the end date (expiry, else the countdown
- * announcement's end), then an unfinished recovery.
+ * Can't-run states first, then a passed end date, then an unfinished recovery.
+ * An end still ahead is a header pill instead ([federationEndPill]).
  */
 internal fun federationLifecycle(
     details: FederationDetails,
@@ -1063,19 +1075,31 @@ internal fun federationLifecycle(
         FederationState.Closed -> return FederationLifecycle(NoticeSeverity.Error, "Closed in this wallet", null)
         else -> Unit
     }
-    details.endsAtEpochSeconds?.let { end ->
-        val date = formatFederationDate(end, zone, locale)
-        return if (end <= nowEpochSeconds) {
-            FederationLifecycle(NoticeSeverity.Error, "Ended $date", details.endedMessage)
-        } else {
-            FederationLifecycle(NoticeSeverity.Caution, "Ends $date", details.activePopup(nowEpochSeconds) ?: "Move your funds out before then.")
-        }
+    details.endsAtEpochSeconds?.takeIf { it <= nowEpochSeconds }?.let { end ->
+        return FederationLifecycle(NoticeSeverity.Error, "Ended ${formatFederationDate(end, zone, locale)}", details.endedMessage)
     }
     if (details.state == FederationState.Recovering) {
         return FederationLifecycle(NoticeSeverity.Caution, "Restoring your balance", "Payments resume when it's done.")
     }
     return null
 }
+
+/** "Ends <date>" for the header while the end (expiry, else the countdown's end) is still ahead. */
+internal fun federationEndPill(
+    details: FederationDetails,
+    nowEpochSeconds: Long,
+    zone: ZoneId,
+    locale: Locale = Locale.getDefault(),
+): String? {
+    val end = details.endsAtEpochSeconds?.takeIf { it > nowEpochSeconds } ?: return null
+    return "Ends ${formatFederationDate(end, zone, locale)}"
+}
+
+/** What the federation says about itself: a running countdown announcement first, then its about text. */
+internal fun federationAboutText(details: FederationDetails, nowEpochSeconds: Long): String? =
+    listOfNotNull(details.activePopup(nowEpochSeconds), details.aboutMessage)
+        .joinToString("\n\n")
+        .takeIf { it.isNotEmpty() }
 
 internal data class GuardianStatusCopy(
     val title: String,
