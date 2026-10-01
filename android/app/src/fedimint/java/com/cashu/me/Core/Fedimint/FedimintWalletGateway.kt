@@ -10,6 +10,9 @@ import com.cashu.me.Core.CDK.ReceiveRecoveryCandidate
 import com.cashu.me.Core.CDK.SagaRecoveryReport
 import com.cashu.me.Core.CDK.WalletAccountReference
 import com.cashu.me.Core.NPCQuote
+import com.cashu.me.Models.FederationDetails
+import com.cashu.me.Models.FederationNetwork
+import com.cashu.me.Models.FederationState
 import com.cashu.me.Models.MeltPaymentResult
 import com.cashu.me.Models.MeltQuoteInfo
 import com.cashu.me.Models.MeltQuoteState
@@ -26,11 +29,17 @@ import com.cashu.me.Models.WalletTransaction
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.fedimint.sdk.ActivityItem
 import org.fedimint.sdk.ActivityStatus
 import org.fedimint.sdk.Direction
@@ -38,10 +47,12 @@ import org.fedimint.sdk.EcashReceiveState
 import org.fedimint.sdk.EcashSendState
 import org.fedimint.sdk.ErrorCode
 import org.fedimint.sdk.Federation
+import org.fedimint.sdk.FederationStatus
 import org.fedimint.sdk.InviteCode
 import org.fedimint.sdk.LnQuote
 import org.fedimint.sdk.LnReceiveState
 import org.fedimint.sdk.LnSendState
+import org.fedimint.sdk.Network
 import org.fedimint.sdk.Notes
 import org.fedimint.sdk.OperationKind
 import org.fedimint.sdk.Sdk
@@ -79,9 +90,11 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
     private suspend fun infoFor(federation: Federation): MintInfo {
         val hasLightning = federation.lightning() != null
         val rails = if (hasLightning) listOf(PaymentMethodKind.Bolt11) else emptyList()
+        val meta = liveDetails[federation.id()]?.meta ?: federation.meta().configMetadata()
         return MintInfo(
             url = FedimintSupport.keyFor(federation.id()),
             name = federation.name()?.takeIf { it.isNotBlank() } ?: "Federation",
+            iconUrl = (meta["federation_icon_url"] ?: meta["fedi:federation_icon_url"])?.takeIf { it.isNotBlank() },
             balance = msatsToSats(federation.balance()),
             units = listOf("sat"),
             mintUnits = listOf("sat"),
@@ -141,6 +154,127 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
     }
 
     override suspend fun fetchMintInfo(mintUrl: String): MintInfo? = infoFor(federation(mintUrl))
+
+    // ---- federation details ---------------------------------------------------
+
+    override suspend fun federationDetails(mintUrl: String, live: Boolean): FederationDetails =
+        withContext(Dispatchers.IO) {
+            val sdk = sdk()
+            val id = FedimintSupport.federationId(mintUrl)
+            // A quarantined or closed federation has no live handle; its stored record still names it.
+            val federation = try {
+                federation(mintUrl)
+            } catch (error: SdkException) {
+                null
+            }
+            val local = federation?.let { localDetails(sdk, it) } ?: storedDetails(sdk, id)
+            if (!live) return@withContext local.withLive(liveDetails[id])
+            if (federation == null) {
+                throw IllegalStateException((local.state as? FederationState.Quarantined)?.reason ?: "This federation isn't running.")
+            }
+            val fetched = withTimeoutOrNull(LIVE_DETAILS_TIMEOUT_MILLIS) { fetchLiveDetails(sdk, federation) }
+                ?: throw IllegalStateException("Couldn't reach the federation.")
+            liveDetails[id] = fetched
+            local.withLive(fetched)
+        }
+
+    /** Identity, capabilities, status, invite and configuration metadata: all local reads. */
+    private fun localDetails(sdk: Sdk, federation: Federation): FederationDetails {
+        val id = federation.id()
+        val invite = federation.inviteCode().display()
+        val capabilities = federation.capabilities()
+        return FederationDetails(
+            federationId = id,
+            name = federation.name()?.takeIf { it.isNotBlank() },
+            network = federation.network().toModel(),
+            state = sdk.federationStatus(id)?.toModel() ?: FederationState.Running,
+            supportsEcash = capabilities.ecash,
+            supportsLightning = capabilities.lightning,
+            supportsOnchain = capabilities.onchain,
+            inviteCode = invite,
+            inviteGuardians = FedimintInviteCode.decode(invite)?.guardians.orEmpty(),
+            meta = federation.meta().configMetadata(),
+        )
+    }
+
+    private fun storedDetails(sdk: Sdk, id: String): FederationDetails {
+        val stored = sdk.storedFederations().firstOrNull { it.id == id }
+            ?: throw IllegalStateException("This federation is no longer in the wallet.")
+        return FederationDetails(
+            federationId = id,
+            name = stored.name?.takeIf { it.isNotBlank() },
+            network = stored.network.toModel(),
+            state = stored.status.toModel(),
+            supportsEcash = false,
+            supportsLightning = false,
+            supportsOnchain = false,
+            inviteCode = "",
+            inviteGuardians = emptyList(),
+        )
+    }
+
+    /**
+     * The guardians' view: the config (guardian count, modules) via a preview of
+     * our own invite, and the merged metadata with its consensus revision. The
+     * preview is the reachability gate; metadata falls back to the config's.
+     */
+    private suspend fun fetchLiveDetails(sdk: Sdk, federation: Federation): LiveDetails = coroutineScope {
+        val meta = federation.meta()
+        val merged = async { orNull { meta.all() } }
+        val revision = async { orNull { meta.consensusMetadata()?.revision?.toLong() } }
+        val preview = try {
+            sdk.preview(federation.inviteCode())
+        } catch (error: SdkException) {
+            throw IllegalStateException(friendly(error), error)
+        }
+        LiveDetails(
+            guardianCount = preview.guardians.toInt(),
+            modules = preview.modules,
+            meta = merged.await() ?: preview.meta,
+            metaRevision = revision.await(),
+        )
+    }
+
+    private fun FederationDetails.withLive(live: LiveDetails?): FederationDetails =
+        if (live == null) this else copy(
+            guardianCount = live.guardianCount,
+            modules = live.modules,
+            meta = meta + live.meta,
+            metaRevision = live.metaRevision,
+        )
+
+    private suspend fun <T> orNull(block: suspend () -> T): T? = try {
+        block()
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (error: Exception) {
+        null
+    }
+
+    /** Last successful live read per federation id, so a reopened screen fills in immediately. */
+    private val liveDetails = ConcurrentHashMap<String, LiveDetails>()
+
+    private data class LiveDetails(
+        val guardianCount: Int,
+        val modules: List<String>,
+        val meta: Map<String, String>,
+        val metaRevision: Long?,
+    )
+
+    private fun FederationStatus.toModel(): FederationState = when (this) {
+        is FederationStatus.Running -> FederationState.Running
+        is FederationStatus.Recovering -> FederationState.Recovering
+        is FederationStatus.Quarantined -> FederationState.Quarantined(diagnostic.message)
+        else -> FederationState.Closed
+    }
+
+    private fun Network.toModel(): FederationNetwork = when (this) {
+        Network.BITCOIN -> FederationNetwork.Bitcoin
+        Network.TESTNET -> FederationNetwork.Testnet
+        Network.TESTNET4 -> FederationNetwork.Testnet4
+        Network.SIGNET -> FederationNetwork.Signet
+        Network.REGTEST -> FederationNetwork.Regtest
+    }
 
     override suspend fun restoreMint(mintUrl: String): RestoreMintResult =
         RestoreMintResult(mintUrl = mintUrl, mintName = "Federation", spent = 0, unspent = 0, pending = 0)
@@ -508,5 +642,6 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
     private companion object {
         const val POLL_MILLIS = 2_000L
         const val MAX_QUOTE_ATTEMPTS = 200
+        const val LIVE_DETAILS_TIMEOUT_MILLIS = 15_000L
     }
 }

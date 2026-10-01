@@ -38,6 +38,7 @@ import com.cashu.me.Core.Protocols.SecureStorage
 import com.cashu.me.Core.Protocols.StorageKeys
 import com.cashu.me.Core.Protocols.WalletServiceProtocol
 import com.cashu.me.Core.Wallet.isInsufficientBalance
+import com.cashu.me.Models.FederationDetails
 import com.cashu.me.Models.MeltPaymentResult
 import com.cashu.me.Models.MeltQuoteInfo
 import com.cashu.me.Models.MeltQuoteState
@@ -595,9 +596,14 @@ class WalletManager(
      * Throws when the mint is unreachable so callers can map Checking → Offline.
      */
     suspend fun fetchLiveMintInfo(mintUrl: String): MintInfo? {
-        val normalized = mintMetadataFetcher.normalizeMintUrl(mintUrl)
+        // A federation key is not a URL; normalizing it would route it to CDK as `https://fedimint:…`.
+        val normalized = if (FedimintSupport.isFederationKey(mintUrl)) mintUrl else mintMetadataFetcher.normalizeMintUrl(mintUrl)
         return gateway.fetchMintInfo(normalized)
     }
+
+    /** Fedimint: the SDK's view of a joined federation; [live] also asks its guardians. */
+    suspend fun federationDetails(mintUrl: String, live: Boolean): FederationDetails =
+        gateway.federationDetails(mintUrl, live)
 
     override suspend fun createMintQuote(amount: Long?, method: PaymentMethodKind, unit: String, description: String?): MintQuoteInfo {
         val active = mutableState.value.activeMint ?: throw IllegalStateException("No active mint.")

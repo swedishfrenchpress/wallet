@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import org.cashudevkit.PendingMelt
 import com.cashu.me.Core.NPCQuote
 import com.cashu.me.Models.MeltPaymentResult
+import com.cashu.me.Models.FederationDetails
 import com.cashu.me.Models.MeltQuoteInfo
 import com.cashu.me.Models.MintInfo
 import com.cashu.me.Models.MintQuoteInfo
@@ -32,17 +33,26 @@ interface CdkWalletGateway {
     suspend fun ensureWallet(mintUrl: String, unit: String = "sat")
 
     /**
-     * Fedimint: join the federation behind [invite] and return it as a mint
-     * row keyed `fedimint:<federationId>`. Only the fedimint flavor supports it.
-     */
-    /**
      * Largest ecash amount that can actually be sent from [mintUrl], when the
      * backend charges the sender a fee on top of the amount (Fedimint). Null
      * means "the balance", which is right for CDK's receiver-pays sends.
      */
     suspend fun maxSendableEcash(mintUrl: String, unit: String): Long? = null
 
+    /**
+     * Fedimint: join the federation behind [invite] and return it as a mint
+     * row keyed `fedimint:<federationId>`. Only the fedimint flavor supports it.
+     */
     suspend fun joinFederation(invite: String): MintInfo =
+        throw CdkGatewayUnavailable("Fedimint is not available in this build.")
+
+    /**
+     * Fedimint: everything the SDK reports about the federation keyed [mintUrl].
+     * With [live] false only local reads run (instant, works offline); with
+     * [live] true the guardians are asked for the config and current metadata,
+     * and an unreachable federation throws.
+     */
+    suspend fun federationDetails(mintUrl: String, live: Boolean): FederationDetails =
         throw CdkGatewayUnavailable("Fedimint is not available in this build.")
 
     /**

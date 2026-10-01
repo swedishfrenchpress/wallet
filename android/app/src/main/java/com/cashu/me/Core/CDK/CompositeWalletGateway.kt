@@ -1,6 +1,7 @@
 package com.cashu.me.Core.CDK
 
 import com.cashu.me.Core.Fedimint.FedimintSupport
+import com.cashu.me.Models.FederationDetails
 import com.cashu.me.Models.MeltQuoteInfo
 import com.cashu.me.Models.MintInfo
 import com.cashu.me.Models.MintQuoteInfo
@@ -41,6 +42,9 @@ class CompositeWalletGateway(
         forMint(mintUrl).maxSendableEcash(mintUrl, unit)
 
     override suspend fun joinFederation(invite: String): MintInfo = fedi.joinFederation(invite)
+
+    override suspend fun federationDetails(mintUrl: String, live: Boolean): FederationDetails =
+        fedi.federationDetails(mintUrl, live)
 
     override suspend fun removeWalletIfSingleUnit(mintUrl: String): Boolean =
         forMint(mintUrl).removeWalletIfSingleUnit(mintUrl)

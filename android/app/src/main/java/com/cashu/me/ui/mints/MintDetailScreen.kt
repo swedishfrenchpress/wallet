@@ -70,6 +70,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cashu.me.Core.AmountFormatter
+import com.cashu.me.Core.Fedimint.FedimintSupport
 import com.cashu.me.Core.PriceService
 import com.cashu.me.Core.Protocols.CurrencyAmount
 import com.cashu.me.Core.Protocols.CurrencyRegistry
@@ -109,6 +110,11 @@ fun MintDetailScreen(
     mintUrl: String,
     onClose: () -> Unit,
 ) {
+    // Federations have no NUT-06 record; their screen is built from the Fedimint SDK.
+    if (FedimintSupport.isFederationKey(mintUrl)) {
+        FederationDetailScreen(walletManager, settingsManager, priceService, mintUrl, onClose)
+        return
+    }
     val walletState by walletManager.state.collectAsState()
     val settings by settingsManager.state.collectAsState()
     val priceState by priceService.state.collectAsState()
@@ -580,7 +586,7 @@ private fun CopyUrlChip(url: String) {
 }
 
 @Composable
-private fun EmptyMintFallback(padding: PaddingValues, onClose: () -> Unit) {
+internal fun EmptyMintFallback(padding: PaddingValues, onClose: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
