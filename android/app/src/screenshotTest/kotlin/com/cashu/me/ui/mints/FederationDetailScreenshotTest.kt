@@ -13,6 +13,7 @@ import com.cashu.me.Models.FederationDetails
 import com.cashu.me.Models.FederationGuardian
 import com.cashu.me.Models.FederationNetwork
 import com.cashu.me.Models.FederationState
+import com.cashu.me.Models.GuardianHealth
 import com.cashu.me.Models.MintInfo
 import com.cashu.me.ui.theme.CashuTheme
 
@@ -29,6 +30,10 @@ private val previewDetails = FederationDetails(
     inviteCode = "fed11qgqrgvnhwden5te0v9k8q6rp9ekh2arfdeukuet595cr2ttpd3jhq6rzve6zuer9wchxvetyd938gcewvdhk6tcqqysptkuvknc7erjgf4em3zfh90kffqf9srujn6q53d6r056e4apze5cw27h75",
     inviteGuardians = listOf(FederationGuardian(0, "wss://alpha.mutinynet-05-alephbft.dev.fedibtc.com/")),
     guardianCount = 4,
+    guardianRoster = listOf("alpha", "bravo", "delta", "charlie").mapIndexed { peer, name ->
+        FederationGuardian(peer, "wss://$name.mutinynet-05-alephbft.dev.fedibtc.com/", name = name, health = GuardianHealth.Active)
+    },
+    sessionCount = 504_328,
     modules = listOf("fedi-social", "ln", "mint", "stability_pool", "wallet", "meta"),
     meta = mapOf(
         "federation_name" to "Mutinynet Signet",
@@ -68,10 +73,28 @@ private fun FederationPreview(details: FederationDetails?, connection: MintConne
 fun federationDetailLive() = FederationPreview(previewDetails, MintConnectionState.Online)
 
 @PreviewTest
+@Preview(name = "federation-degraded-dark", widthDp = 390, heightDp = 1500, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun federationDetailDegraded() = FederationPreview(
+    previewDetails.copy(
+        guardianRoster = previewDetails.guardianRoster.mapIndexed { index, guardian ->
+            guardian.copy(health = listOf(GuardianHealth.Active, GuardianHealth.Offline, GuardianHealth.Behind, GuardianHealth.Active)[index])
+        },
+    ),
+    MintConnectionState.Online,
+)
+
+@PreviewTest
 @Preview(name = "federation-checking-dark", widthDp = 390, heightDp = 1100, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun federationDetailChecking() = FederationPreview(
-    previewDetails.copy(guardianCount = null, modules = emptyList(), meta = emptyMap(), metaRevision = null),
+    previewDetails.copy(
+        guardianCount = null,
+        modules = emptyList(),
+        meta = emptyMap(),
+        metaRevision = null,
+        guardianRoster = previewDetails.guardianRoster.map { it.copy(health = GuardianHealth.Unknown) },
+    ),
     MintConnectionState.Checking,
 )
 
@@ -79,7 +102,7 @@ fun federationDetailChecking() = FederationPreview(
 @Preview(name = "federation-offline-dark", widthDp = 390, heightDp = 1100, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun federationDetailOffline() = FederationPreview(
-    previewDetails.copy(guardianCount = null, modules = emptyList(), meta = emptyMap(), metaRevision = null),
+    previewDetails.copy(guardianCount = null, modules = emptyList(), meta = emptyMap(), metaRevision = null, guardianRoster = emptyList()),
     MintConnectionState.Offline,
     recovery = true,
     active = false,
@@ -96,6 +119,7 @@ fun federationDetailSingleGuardian() = FederationPreview(
         modules = listOf("mint", "ln", "wallet"),
         meta = emptyMap(),
         inviteGuardians = listOf(FederationGuardian(0, "wss://solo.example.com/")),
+        guardianRoster = listOf(FederationGuardian(0, "wss://solo.example.com/", name = "Solo", health = GuardianHealth.Active)),
     ),
     MintConnectionState.Online,
     active = false,
@@ -104,4 +128,4 @@ fun federationDetailSingleGuardian() = FederationPreview(
 @PreviewTest
 @Preview(name = "federation-large-text", widthDp = 320, heightDp = 2200, fontScale = 2f, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-fun federationDetailLargeText() = FederationPreview(previewDetails.copy(guardianCount = 7), MintConnectionState.Online)
+fun federationDetailLargeText() = FederationPreview(previewDetails, MintConnectionState.Online)

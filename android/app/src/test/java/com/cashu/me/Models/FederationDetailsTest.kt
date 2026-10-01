@@ -1,8 +1,8 @@
 package com.cashu.me.Models
 
 import com.cashu.me.ui.mints.federationSubtitle
-import com.cashu.me.ui.mints.quorumSubtitle
-import com.cashu.me.ui.mints.quorumTitle
+import com.cashu.me.ui.mints.GuardianHealthCopy
+import com.cashu.me.ui.mints.guardianHealthCopy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -67,20 +67,72 @@ class FederationDetailsTest {
     }
 
     @Test
-    fun copyDescribesTheQuorum() {
-        assertEquals("Single guardian" to "No backup if it goes offline", quorumTitle(FederationQuorum(1)) to quorumSubtitle(FederationQuorum(1)))
-        assertEquals("All 3 must agree" to "Stops if any goes offline", quorumTitle(FederationQuorum(3)) to quorumSubtitle(FederationQuorum(3)))
-        assertEquals("3 of 4 must agree" to "Keeps working with 1 offline", quorumTitle(FederationQuorum(4)) to quorumSubtitle(FederationQuorum(4)))
-        assertEquals("5 of 7 must agree" to "Keeps working with up to 2 offline", quorumTitle(FederationQuorum(7)) to quorumSubtitle(FederationQuorum(7)))
+    fun headerSubtitleCountsGuardians() {
         assertEquals("Fedimint federation", federationSubtitle(null))
         assertEquals("Fedimint federation · 1 guardian", federationSubtitle(1))
         assertEquals("Fedimint federation · 4 guardians", federationSubtitle(4))
+    }
+
+    @Test
+    fun healthCopySaysHowManyAreOnlineAndWhetherPaymentsWork() {
+        fun copy(vararg health: GuardianHealth) = guardianHealthCopy(
+            details(roster = health.mapIndexed { i, h -> FederationGuardian(i, "wss://g$i/", health = h) }),
+        )
+        val a = GuardianHealth.Active
+        val b = GuardianHealth.Behind
+        val o = GuardianHealth.Offline
+
+        assertEquals(GuardianHealthCopy("All 4 online", "Signing normally", false), copy(a, a, a, a))
+        assertEquals(GuardianHealthCopy("3 of 4 online", "Payments still work", false), copy(a, a, a, o))
+        assertEquals(GuardianHealthCopy("All 4 online", "1 behind, payments still work", false), copy(a, a, a, b))
+        assertEquals(GuardianHealthCopy("2 of 4 online", "Too few signing to make payments", true), copy(a, a, o, o))
+        assertEquals(GuardianHealthCopy("Guardian online", "Single guardian, no backup", false), copy(a))
+        assertEquals(GuardianHealthCopy("Guardian offline", "Payments are paused", true), copy(o))
+        assertNull("unknown health has no copy", copy(GuardianHealth.Unknown, GuardianHealth.Unknown))
+    }
+
+    @Test
+    fun guardiansReadByNameInNaturalOrder() {
+        // Bitcoin Principles' config: peer ids don't follow the names.
+        val roster = listOf(
+            FederationGuardian(0, "wss://a/", name = "Guardian 1"),
+            FederationGuardian(1, "wss://b/", name = "Guardian 4"),
+            FederationGuardian(2, "wss://c/", name = "Guardian 3"),
+            FederationGuardian(3, "wss://d/", name = "guardian 2"),
+            FederationGuardian(4, "wss://e/", name = "Guardian 10"),
+        )
+
+        val ordered = details(roster = roster).guardians
+
+        assertEquals(listOf("Guardian 1", "Guardian 2", "Guardian 3", "Guardian 4", "Guardian 10"), ordered.map { it.displayName })
+        assertEquals(listOf("1", "2", "3", "4", "10"), ordered.map { it.monogram })
+        assertEquals("A", FederationGuardian(0, "wss://a/", name = "alpha").monogram)
+        assertEquals("Guardian 3", FederationGuardian(2, "wss://c/").displayName)
+    }
+
+    @Test
+    fun rosterFallsBackToTheInviteAndCountsHealth() {
+        val invite = listOf(FederationGuardian(0, "wss://a/"))
+        assertEquals(invite, details(invite = invite).guardians)
+
+        val roster = listOf(
+            FederationGuardian(0, "wss://a/", health = GuardianHealth.Active),
+            FederationGuardian(1, "wss://b/", health = GuardianHealth.Behind),
+            FederationGuardian(2, "wss://c/", health = GuardianHealth.Offline),
+        )
+        val probed = details(roster = roster, invite = invite)
+        assertEquals(3, probed.guardians.size)
+        assertEquals(2, probed.onlineCount)
+        assertEquals(1, probed.activeCount)
+        assertEquals(FederationQuorum(3), probed.quorum)
     }
 
     private fun details(
         guardianCount: Int? = null,
         modules: List<String> = emptyList(),
         meta: Map<String, String> = emptyMap(),
+        roster: List<FederationGuardian> = emptyList(),
+        invite: List<FederationGuardian> = emptyList(),
     ) = FederationDetails(
         federationId = "15db8cb4f1ec8e484d73b889372bec94812580f929e8148b7437d359af422cd3",
         name = "Mutinynet",
@@ -90,8 +142,9 @@ class FederationDetailsTest {
         supportsLightning = true,
         supportsOnchain = true,
         inviteCode = "fed11…",
-        inviteGuardians = emptyList(),
+        inviteGuardians = invite,
         guardianCount = guardianCount,
+        guardianRoster = roster,
         modules = modules,
         meta = meta,
     )

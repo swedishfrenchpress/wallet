@@ -63,6 +63,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,6 +78,7 @@ import com.cashu.me.Models.FederationDetails
 import com.cashu.me.Models.FederationGuardian
 import com.cashu.me.Models.FederationQuorum
 import com.cashu.me.Models.FederationState
+import com.cashu.me.Models.GuardianHealth
 import com.cashu.me.Models.MintInfo
 import com.cashu.me.Models.PaymentMethodKind
 import com.cashu.me.ui.components.ActionConfirmationSheet
@@ -519,16 +521,18 @@ private fun FederationNotices(details: FederationDetails?, nowEpochSeconds: Long
 }
 
 /**
- * One inset group, Settings style: the quorum (a segmented ring around the
- * guardian count, the signing rule in one sentence) above the guardians the
- * invite names. Tapping a guardian copies its address.
+ * One inset group, Settings style: how many guardians are online and signing
+ * (a ring with one arc per guardian, coloured by health, around the online
+ * count), then each guardian as a contact row with a presence dot. Health is
+ * consensus' own view, from the guardians' `status` replies. Tapping a
+ * guardian copies its address.
  */
 @Composable
 private fun GuardiansSection(details: FederationDetails?, checking: Boolean) {
     val clipboard = LocalClipboardManager.current
     val confirmationToastController = LocalConfirmationToastController.current
-    val quorum = details?.quorum
-    val listed = details?.inviteGuardians.orEmpty()
+    val guardians = details?.guardians.orEmpty()
+    val healthKnown = details?.healthKnown == true
     SectionHeader("Guardians")
     Column(
         modifier = Modifier
@@ -538,41 +542,31 @@ private fun GuardiansSection(details: FederationDetails?, checking: Boolean) {
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)),
     ) {
-        QuorumRow(quorum = quorum, checking = checking)
-        listed.forEach { guardian ->
+        GuardianHealthRow(details = details, guardians = guardians, checking = checking)
+        guardians.forEach { guardian ->
             HorizontalDivider(
                 thickness = Dp.Hairline,
                 color = MaterialTheme.colorScheme.outlineVariant,
                 modifier = Modifier.padding(start = GuardianTextInset),
             )
-            GuardianRow(guardian) {
+            GuardianRow(guardian = guardian.takeIf { healthKnown } ?: guardian.copy(health = GuardianHealth.Unknown)) {
                 clipboard.setText(AnnotatedString(guardian.url))
                 confirmationToastController?.show("Copied guardian address")
             }
         }
     }
-    if (quorum != null && listed.isNotEmpty() && listed.size < quorum.guardians) {
-        Text(
-            text = "The invite code shares ${listed.size} of ${quorum.guardians} guardian addresses.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = CashuTheme.spacing.comfortable),
-        )
-    }
 }
 
 @Composable
-private fun QuorumRow(quorum: FederationQuorum?, checking: Boolean) {
-    val title = when {
-        quorum != null -> quorumTitle(quorum)
-        checking -> "Asking the guardians…"
-        else -> "Quorum unknown"
+private fun GuardianHealthRow(details: FederationDetails?, guardians: List<FederationGuardian>, checking: Boolean) {
+    val copy = details?.let(::guardianHealthCopy)
+    val count = details?.quorum?.guardians
+    val title = copy?.title ?: when {
+        checking -> "Checking guardians…"
+        count != null -> if (count == 1) "1 guardian" else "$count guardians"
+        else -> "Guardians unavailable"
     }
-    val subtitle = when {
-        quorum != null -> quorumSubtitle(quorum)
-        checking -> null
-        else -> "The guardians didn't respond."
-    }
+    val subtitle = copy?.subtitle ?: if (checking) null else "Couldn't check who's online"
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.comfortable),
@@ -580,99 +574,116 @@ private fun QuorumRow(quorum: FederationQuorum?, checking: Boolean) {
             .fillMaxWidth()
             .padding(CashuTheme.spacing.comfortable)
             .semantics(mergeDescendants = true) {
-                quorum?.let { contentDescription = quorumAccessibilityLabel(it) }
+                contentDescription = listOfNotNull(title, subtitle).joinToString(". ")
             },
     ) {
-        QuorumRing(quorum = quorum, modifier = Modifier.size(GuardianLeadingSize))
+        GuardianRing(
+            healths = guardians.map { it.health }.takeIf { copy != null },
+            count = count,
+            label = if (copy != null) details.onlineCount.toString() else count?.toString() ?: "–",
+            modifier = Modifier.size(GuardianLeadingSize),
+        )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = if (quorum != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (copy != null || count != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             subtitle?.let {
-                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (copy?.warning == true) CashuTheme.colors.onPendingContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
 }
 
 /**
- * A ring with one arc per guardian around the count: the signing threshold
- * in full ink, the spares the federation can lose in faint ink. It draws in
- * clockwise once the count arrives. Very large federations collapse to two
- * arcs (threshold, spares) so the ring never turns into a dashed line.
+ * One arc per guardian around [label]: green while signing, orange when
+ * behind, faint when offline. Before health is known the arcs are neutral
+ * (or a bare track when even the count is). The arcs draw in clockwise when
+ * health arrives. Very large federations collapse to a single ring.
  */
 @Composable
-private fun QuorumRing(quorum: FederationQuorum?, modifier: Modifier = Modifier) {
+private fun GuardianRing(healths: List<GuardianHealth>?, count: Int?, label: String, modifier: Modifier = Modifier) {
     val still = LocalInspectionMode.current
     val reveal = remember { Animatable(if (still) 1f else 0f) }
-    LaunchedEffect(quorum?.guardians) {
-        if (quorum != null && !still) reveal.animateTo(1f, tween(QuorumRevealMillis, easing = FastOutSlowInEasing))
+    LaunchedEffect(healths, count) {
+        if ((healths != null || count != null) && !still) {
+            reveal.snapTo(0f)
+            reveal.animateTo(1f, tween(GuardianRevealMillis, easing = FastOutSlowInEasing))
+        }
     }
-    val strong = MaterialTheme.colorScheme.onSurface
-    val faint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+    val active = CashuTheme.colors.received
+    val behind = CashuTheme.colors.pending
+    val neutral = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val faint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val strokePx = QuorumRingStroke.toPx()
+            val strokePx = GuardianRingStroke.toPx()
             val radius = (size.minDimension - strokePx) / 2
             val topLeft = Offset(center.x - radius, center.y - radius)
             val arcSize = Size(radius * 2, radius * 2)
-            if (quorum == null) {
+            val colors: List<Color> = when {
+                healths != null && healths.isNotEmpty() -> healths.map {
+                    when (it) {
+                        GuardianHealth.Active -> active
+                        GuardianHealth.Behind -> behind
+                        GuardianHealth.Offline, GuardianHealth.Unknown -> faint
+                    }
+                }
+                count != null && count > 0 -> List(count) { neutral }
+                else -> emptyList()
+            }
+            if (colors.isEmpty()) {
                 drawArc(track, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(strokePx))
                 return@Canvas
             }
-            val spans: List<Pair<Float, Boolean>> = when {
-                quorum.guardians == 1 -> listOf(1f to true)
-                quorum.guardians <= MaxQuorumSegments -> List(quorum.guardians) { 1f to (it < quorum.threshold) }
-                else -> listOfNotNull(
-                    quorum.threshold.toFloat() to true,
-                    quorum.tolerated.takeIf { it > 0 }?.let { it.toFloat() to false },
-                )
-            }
-            val total = spans.sumOf { it.first.toDouble() }.toFloat()
+            val segments = if (colors.size > MaxRingSegments) listOf(colors.first()) else colors
+            val slot = 360f / segments.size
             // Round caps overhang each end by half the stroke; leave a visible gap past them.
             val capDegrees = Math.toDegrees((strokePx / 2 / radius).toDouble()).toFloat()
-            val gapDegrees = if (spans.size == 1) 0f else Math.toDegrees((QuorumSegmentGap.toPx() / radius).toDouble()).toFloat() + capDegrees * 2
+            val gapDegrees = if (segments.size == 1) 0f else Math.toDegrees((GuardianSegmentGap.toPx() / radius).toDouble()).toFloat() + capDegrees * 2
             val drawn = 360f * reveal.value
-            var start = -90f
-            spans.forEach { (weight, signing) ->
-                val slot = 360f * weight / total
+            segments.forEachIndexed { index, color ->
                 val sweep = (slot - gapDegrees).coerceAtLeast(0.5f)
-                val visible = (drawn - (start + 90f)).coerceIn(0f, sweep)
+                val visible = (drawn - index * slot).coerceIn(0f, sweep)
                 if (visible > 0f) {
                     drawArc(
-                        color = if (signing) strong else faint,
-                        startAngle = start + gapDegrees / 2,
-                        sweepAngle = if (spans.size == 1) visible.coerceAtMost(360f) else visible,
+                        color = color,
+                        startAngle = -90f + index * slot + gapDegrees / 2,
+                        sweepAngle = visible,
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
-                        style = Stroke(strokePx, cap = if (spans.size == 1) StrokeCap.Butt else StrokeCap.Round),
+                        style = Stroke(strokePx, cap = if (segments.size == 1) StrokeCap.Butt else StrokeCap.Round),
                     )
                 }
-                start += slot
             }
         }
         Text(
-            text = quorum?.guardians?.toString() ?: "–",
+            text = label,
             style = MaterialTheme.typography.titleMedium.withMonoDigits(),
-            color = if (quorum != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (healths != null || count != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
-/** Contact-row shape: numbered avatar, name, endpoint host. */
+/** Contact-row shape: monogram avatar with a presence dot, name, endpoint host. */
 @Composable
 private fun GuardianRow(guardian: FederationGuardian, onCopy: () -> Unit) {
+    val state = guardianStateLabel(guardian.health)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CashuTheme.spacing.comfortable),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = "Copy address", onClick = onCopy)
-            .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.default),
+            .padding(horizontal = CashuTheme.spacing.comfortable, vertical = CashuTheme.spacing.default)
+            .semantics(mergeDescendants = true) { state?.let { stateDescription = it } },
     ) {
         Box(modifier = Modifier.size(GuardianLeadingSize), contentAlignment = Alignment.Center) {
             Box(
@@ -684,15 +695,28 @@ private fun GuardianRow(guardian: FederationGuardian, onCopy: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "${guardian.peerId + 1}",
+                    text = guardian.monogram,
                     style = MaterialTheme.typography.titleSmall.withMonoDigits(),
                     color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            presenceColor(guardian.health)?.let { dot ->
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 2.dp, bottom = 2.dp)
+                        .size(PresenceDotSize)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(2.dp)
+                        .clip(CircleShape)
+                        .background(dot),
                 )
             }
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = guardianLabel(guardian),
+                text = guardian.displayName,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -700,11 +724,34 @@ private fun GuardianRow(guardian: FederationGuardian, onCopy: () -> Unit) {
                 text = guardian.host,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
+        }
+        // Quiet when healthy; only a guardian that needs attention says so.
+        if (guardian.health == GuardianHealth.Behind || guardian.health == GuardianHealth.Offline) {
+            Text(
+                text = state.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
+}
+
+@Composable
+private fun presenceColor(health: GuardianHealth): Color? = when (health) {
+    GuardianHealth.Active -> CashuTheme.colors.received
+    GuardianHealth.Behind -> CashuTheme.colors.pending
+    GuardianHealth.Offline -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+    GuardianHealth.Unknown -> null
+}
+
+private fun guardianStateLabel(health: GuardianHealth): String? = when (health) {
+    GuardianHealth.Active -> "Online"
+    GuardianHealth.Behind -> "Behind"
+    GuardianHealth.Offline -> "Offline"
+    GuardianHealth.Unknown -> null
 }
 
 @Composable
@@ -865,7 +912,8 @@ private fun FederationTechnicalDetails(details: FederationDetails) {
                     }.joinToString(", ").ifEmpty { "none" },
                 )
                 details.metaRevision?.let { TechnicalEntry("meta_revision", it.toString()) }
-                details.inviteGuardians.forEach { TechnicalEntry("peer_${it.peerId}", it.url) }
+                details.sessionCount?.let { TechnicalEntry("session_count", it.toString()) }
+                details.guardians.sortedBy { it.peerId }.forEach { TechnicalEntry("peer_${it.peerId}", it.url) }
                 details.meta.toSortedMap().forEach { (key, value) -> TechnicalEntry(key, value) }
             }
         }
@@ -899,23 +947,34 @@ internal fun federationSubtitle(guardianCount: Int?): String = when (guardianCou
     else -> "Fedimint federation · $guardianCount guardians"
 }
 
-internal fun quorumTitle(quorum: FederationQuorum): String = when {
-    quorum.guardians == 1 -> "Single guardian"
-    quorum.tolerated == 0 -> "All ${quorum.guardians} must agree"
-    else -> "${quorum.threshold} of ${quorum.guardians} must agree"
+internal data class GuardianHealthCopy(val title: String, val subtitle: String, val warning: Boolean)
+
+/**
+ * The guardian line in words: how many are online, and whether enough are
+ * signing for payments to go through. Null until health is known.
+ */
+internal fun guardianHealthCopy(details: FederationDetails): GuardianHealthCopy? {
+    if (!details.healthKnown) return null
+    val total = details.guardianRoster.size
+    val online = details.onlineCount
+    val active = details.activeCount
+    val behind = online - active
+    val threshold = FederationQuorum(total).threshold
+    if (total == 1) {
+        return when {
+            active == 1 -> GuardianHealthCopy("Guardian online", "Single guardian, no backup", warning = false)
+            online == 1 -> GuardianHealthCopy("Guardian online", "Not signing payments", warning = true)
+            else -> GuardianHealthCopy("Guardian offline", "Payments are paused", warning = true)
+        }
+    }
+    val title = if (online == total) "All $total online" else "$online of $total online"
+    return when {
+        active < threshold -> GuardianHealthCopy(title, "Too few signing to make payments", warning = true)
+        active == total -> GuardianHealthCopy(title, "Signing normally", warning = false)
+        behind > 0 -> GuardianHealthCopy(title, "$behind behind, payments still work", warning = false)
+        else -> GuardianHealthCopy(title, "Payments still work", warning = false)
+    }
 }
-
-internal fun quorumSubtitle(quorum: FederationQuorum): String = when {
-    quorum.guardians == 1 -> "No backup if it goes offline"
-    quorum.tolerated == 0 -> "Stops if any goes offline"
-    quorum.tolerated == 1 -> "Keeps working with 1 offline"
-    else -> "Keeps working with up to ${quorum.tolerated} offline"
-}
-
-private fun quorumAccessibilityLabel(quorum: FederationQuorum): String =
-    "${quorum.guardians} ${if (quorum.guardians == 1) "guardian" else "guardians"}. ${quorumTitle(quorum)}. ${quorumSubtitle(quorum)}."
-
-private fun guardianLabel(guardian: FederationGuardian): String = "Guardian ${guardian.peerId + 1}"
 
 /** The opaque-string convention: `prefix(8)…suffix(6)`, never width-filled. */
 private fun middleCut(value: String): String =
@@ -928,8 +987,9 @@ private fun formatFederationDate(epochSeconds: Long): String =
 private val GuardianLeadingSize = 48.dp
 private val GuardianAvatarSize = 40.dp
 private val GuardianTextInset = 80.dp // row padding + leading column + gap
-private val QuorumRingStroke = 4.dp
-private const val QuorumRevealMillis = 700
+private val GuardianRingStroke = 4.dp
+private val PresenceDotSize = 14.dp
+private const val GuardianRevealMillis = 700
 private val ModuleTagMinHeight = 28.dp
-private val QuorumSegmentGap = 5.dp
-private const val MaxQuorumSegments = 24
+private val GuardianSegmentGap = 5.dp
+private const val MaxRingSegments = 24

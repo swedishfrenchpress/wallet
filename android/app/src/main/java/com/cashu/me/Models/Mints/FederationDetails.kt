@@ -23,13 +23,26 @@ data class FederationDetails(
     /** Guardians whose endpoint the invite names; usually a subset of all guardians. */
     val inviteGuardians: List<FederationGuardian>,
     val guardianCount: Int? = null,
+    /** Every guardian with its name and health, from the guardians' own API; empty until probed. */
+    val guardianRoster: List<FederationGuardian> = emptyList(),
+    /** The consensus session the guardians are on, when one answered `status`. */
+    val sessionCount: Long? = null,
     /** Every module kind the federation runs (`mint`, `ln`, `wallet`, `meta`, …). */
     val modules: List<String> = emptyList(),
     /** Merged metadata: consensus values override configuration values per key. */
     val meta: Map<String, String> = emptyMap(),
     val metaRevision: Long? = null,
 ) {
-    val quorum: FederationQuorum? get() = guardianCount?.takeIf { it > 0 }?.let(::FederationQuorum)
+    val quorum: FederationQuorum?
+        get() = (guardianCount ?: guardianRoster.size.takeIf { it > 0 })?.takeIf { it > 0 }?.let(::FederationQuorum)
+
+    /** The roster when probed, else the invite's guardians; in name order (`Guardian 2` before `Guardian 10`). */
+    val guardians: List<FederationGuardian>
+        get() = guardianRoster.ifEmpty { inviteGuardians }.sortedWith(GuardianNameOrder)
+
+    val healthKnown: Boolean get() = guardianRoster.any { it.health != GuardianHealth.Unknown }
+    val onlineCount: Int get() = guardianRoster.count { it.health == GuardianHealth.Active || it.health == GuardianHealth.Behind }
+    val activeCount: Int get() = guardianRoster.count { it.health == GuardianHealth.Active }
 
     val welcomeMessage: String? get() = metaValue("welcome_message")
     val iconUrl: String? get() = metaValue("federation_icon_url")
@@ -69,7 +82,13 @@ data class FederationDetails(
     }
 }
 
-data class FederationGuardian(val peerId: Int, val url: String) {
+data class FederationGuardian(
+    val peerId: Int,
+    val url: String,
+    /** The name the guardian chose in the federation config; null when only the invite is known. */
+    val name: String? = null,
+    val health: GuardianHealth = GuardianHealth.Unknown,
+) {
     /** The endpoint's host, keeping a non-default port: `wss://api.fed.example:8174/` → `api.fed.example:8174`. */
     val host: String
         get() = runCatching {
@@ -77,6 +96,43 @@ data class FederationGuardian(val peerId: Int, val url: String) {
             val host = uri.host ?: return@runCatching null
             if (uri.port == -1) host else "$host:${uri.port}"
         }.getOrNull() ?: url.substringAfter("://").trimEnd('/')
+
+    /** The configured name, sentence-cased; `Guardian N` (1-based) when there is none. */
+    val displayName: String
+        get() = name?.trim()?.takeIf { it.isNotEmpty() }?.replaceFirstChar { it.uppercase() } ?: "Guardian ${peerId + 1}"
+
+    /** Avatar glyph: the number that ends `Guardian 3`, else the name's first letter. */
+    val monogram: String
+        get() = TRAILING_NUMBER.find(displayName)?.groupValues?.get(1) ?: displayName.first().uppercase()
+
+    private companion object {
+        val TRAILING_NUMBER = Regex("""(\d+)\s*$""")
+    }
+}
+
+/**
+ * A guardian as consensus sees it. Active: connected and signing. Behind:
+ * reachable, but not contributing to recent sessions. Offline: no guardian
+ * can reach it. Unknown: nobody answered.
+ */
+enum class GuardianHealth { Active, Behind, Offline, Unknown }
+
+/** Names compared with their digit runs as numbers. */
+private val GuardianNameOrder = Comparator<FederationGuardian> { a, b ->
+    val chunk = Regex("""\d+|\D+""")
+    val left = chunk.findAll(a.displayName.lowercase()).map { it.value }.toList()
+    val right = chunk.findAll(b.displayName.lowercase()).map { it.value }.toList()
+    for (i in 0 until minOf(left.size, right.size)) {
+        val x = left[i]
+        val y = right[i]
+        val order = if (x[0].isDigit() && y[0].isDigit()) {
+            compareValues(x.toBigInteger(), y.toBigInteger())
+        } else {
+            x.compareTo(y)
+        }
+        if (order != 0) return@Comparator order
+    }
+    compareValues(left.size, right.size).takeIf { it != 0 } ?: compareValues(a.peerId, b.peerId)
 }
 
 enum class FederationNetwork(val displayName: String) {

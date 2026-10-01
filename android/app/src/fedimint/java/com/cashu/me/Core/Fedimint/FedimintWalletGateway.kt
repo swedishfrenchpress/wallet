@@ -11,8 +11,10 @@ import com.cashu.me.Core.CDK.SagaRecoveryReport
 import com.cashu.me.Core.CDK.WalletAccountReference
 import com.cashu.me.Core.NPCQuote
 import com.cashu.me.Models.FederationDetails
+import com.cashu.me.Models.FederationGuardian
 import com.cashu.me.Models.FederationNetwork
 import com.cashu.me.Models.FederationState
+import com.cashu.me.Models.GuardianHealth
 import com.cashu.me.Models.MeltPaymentResult
 import com.cashu.me.Models.MeltQuoteInfo
 import com.cashu.me.Models.MeltQuoteState
@@ -90,7 +92,12 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
     private suspend fun infoFor(federation: Federation): MintInfo {
         val hasLightning = federation.lightning() != null
         val rails = if (hasLightning) listOf(PaymentMethodKind.Bolt11) else emptyList()
-        val meta = liveDetails[federation.id()]?.meta ?: federation.meta().configMetadata()
+        val config = federation.meta().configMetadata()
+        val meta = FedimintGuardianApi.mergeMeta(
+            config = config,
+            external = externalMeta(federation.id(), config),
+            sdkMerged = liveDetails[federation.id()]?.meta.orEmpty(),
+        )
         return MintInfo(
             url = FedimintSupport.keyFor(federation.id()),
             name = federation.name()?.takeIf { it.isNotBlank() } ?: "Federation",
@@ -168,14 +175,14 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
                 null
             }
             val local = federation?.let { localDetails(sdk, it) } ?: storedDetails(sdk, id)
-            if (!live) return@withContext local.withLive(liveDetails[id])
+            if (!live) return@withContext local.withLive(liveDetails[id], fresh = false)
             if (federation == null) {
                 throw IllegalStateException((local.state as? FederationState.Quarantined)?.reason ?: "This federation isn't running.")
             }
             val fetched = withTimeoutOrNull(LIVE_DETAILS_TIMEOUT_MILLIS) { fetchLiveDetails(sdk, federation) }
                 ?: throw IllegalStateException("Couldn't reach the federation.")
             liveDetails[id] = fetched
-            local.withLive(fetched)
+            local.withLive(fetched, fresh = true)
         }
 
     /** Identity, capabilities, status, invite and configuration metadata: all local reads. */
@@ -220,28 +227,67 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
      */
     private suspend fun fetchLiveDetails(sdk: Sdk, federation: Federation): LiveDetails = coroutineScope {
         val meta = federation.meta()
+        val configMeta = meta.configMetadata()
         val merged = async { orNull { meta.all() } }
         val revision = async { orNull { meta.consensusMetadata()?.revision?.toLong() } }
+        // Beyond the SDK: the guardians' own API for names and health, and the
+        // federation's external meta (icon, welcome message, limits). Both are
+        // best effort and bounded, so they never decide reachability.
+        val probe = async {
+            orNull {
+                withTimeoutOrNull(GUARDIAN_PROBE_BUDGET_MILLIS) {
+                    guardianApi.probe(FedimintInviteCode.decode(federation.inviteCode().display())?.guardians.orEmpty())
+                }
+            }
+        }
+        val external = async { externalMeta(federation.id(), configMeta) }
         val preview = try {
             sdk.preview(federation.inviteCode())
         } catch (error: SdkException) {
             throw IllegalStateException(friendly(error), error)
         }
+        val guardians = probe.await()
         LiveDetails(
             guardianCount = preview.guardians.toInt(),
             modules = preview.modules,
             meta = merged.await() ?: preview.meta,
             metaRevision = revision.await(),
+            externalMeta = external.await(),
+            roster = guardians?.guardians.orEmpty(),
+            sessionCount = guardians?.sessionCount,
         )
     }
 
-    private fun FederationDetails.withLive(live: LiveDetails?): FederationDetails =
-        if (live == null) this else copy(
+    /**
+     * [fresh] is false for the instant snapshot: names and addresses carry
+     * over from the last read, but its health is history, so it is cleared.
+     */
+    private fun FederationDetails.withLive(live: LiveDetails?, fresh: Boolean): FederationDetails {
+        if (live == null) {
+            val external = externalMetaCache[federationId] ?: return this
+            return copy(meta = FedimintGuardianApi.mergeMeta(meta, external, emptyMap()))
+        }
+        return copy(
             guardianCount = live.guardianCount,
             modules = live.modules,
-            meta = meta + live.meta,
+            meta = FedimintGuardianApi.mergeMeta(config = meta, external = live.externalMeta, sdkMerged = live.meta),
             metaRevision = live.metaRevision,
+            guardianRoster = if (fresh) live.roster else live.roster.map { it.copy(health = GuardianHealth.Unknown) },
+            sessionCount = live.sessionCount.takeIf { fresh },
         )
+    }
+
+    /** The federation's external meta, fetched once per process; empty when it publishes none. */
+    private suspend fun externalMeta(federationId: String, configMeta: Map<String, String>): Map<String, String> {
+        externalMetaCache[federationId]?.let { return it }
+        val url = FedimintGuardianApi.externalMetaUrl(configMeta) ?: return emptyMap()
+        return orNull { guardianApi.externalMeta(url, federationId) }
+            ?.also { externalMetaCache[federationId] = it }
+            .orEmpty()
+    }
+
+    private val guardianApi = FedimintGuardianApi.Client()
+    private val externalMetaCache = ConcurrentHashMap<String, Map<String, String>>()
 
     private suspend fun <T> orNull(block: suspend () -> T): T? = try {
         block()
@@ -259,6 +305,9 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
         val modules: List<String>,
         val meta: Map<String, String>,
         val metaRevision: Long?,
+        val externalMeta: Map<String, String>,
+        val roster: List<FederationGuardian>,
+        val sessionCount: Long?,
     )
 
     private fun FederationStatus.toModel(): FederationState = when (this) {
@@ -643,5 +692,6 @@ class FedimintWalletGateway(context: Context) : CdkWalletGateway {
         const val POLL_MILLIS = 2_000L
         const val MAX_QUOTE_ATTEMPTS = 200
         const val LIVE_DETAILS_TIMEOUT_MILLIS = 15_000L
+        const val GUARDIAN_PROBE_BUDGET_MILLIS = 11_000L
     }
 }
