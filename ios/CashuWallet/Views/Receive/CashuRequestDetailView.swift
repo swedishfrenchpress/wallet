@@ -306,7 +306,8 @@ struct CashuRequestDetailView: View {
             showControls: false,
             staticOnly: true,
             onCopy: { copy(request.encoded) },
-            onShare: { showShareSheet = true }
+            onShare: { showShareSheet = true },
+            copyAccessibilityLabel: "Copy Cashu request"
         )
         .accessibilityIdentifier("cashu.history.payment-code")
         .frame(width: size, height: size)

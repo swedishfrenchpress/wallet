@@ -323,6 +323,7 @@ fun CashuRequestDetailScreen(
                             shareSubject = request.displayTitle,
                             staticOnly = true,
                             confirmationMessage = "Copied payment request",
+                            copyLabel = "Copy Cashu request",
                         )
                     },
                 ) {

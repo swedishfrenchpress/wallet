@@ -1335,6 +1335,20 @@ the same affordance — the doubled discovery is intentional, not a redundancy.
 The bottom row is reserved for primary CTAs (Copy, Continue, New Request,
 Send) and **never** carries Share. Aligning Share to one corner across every
 artifact-display sheet makes it a learnable habit, not a per-screen guess.
+*(Amended 2026-10-02:)* a **request receipt** in History — a pending Bitcoin
+address or Lightning invoice opened from a transaction row — drops the toolbar
+Share: its QR copies on tap, its address or request is already a copyable row,
+and Share stays in the QR's long-press menu. An unclaimed **sent ecash token**
+keeps it (handing the token to its recipient is that receipt's job), and so do
+Cashu Request and Reusable Invoice screens, which are published and re-shared.
+
+**The QR Tap-to-Copy Rule.** *Added 2026-10-02.* Every actionable QR copies its
+content on tap, on both platforms: a success haptic and the screen's existing
+"Copied …" toast. For VoiceOver and TalkBack the QR is a button labelled by
+what it copies ("Copy Bitcoin address", "Copy payment request", "Copy ecash
+token") — never a bare "Copy", which names the screen's own Copy button —
+with Share as an extra action. Long-press keeps the Copy / Share menu.
+Non-actionable QRs (no copy action) stay plain images.
 
 ## 6. Motion Vocabulary
 

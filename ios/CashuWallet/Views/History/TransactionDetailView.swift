@@ -97,7 +97,10 @@ struct TransactionDetailView: View {
             title: transaction.displayTitle,
             contentHeight: contentHeight,
             fitsContent: !usesAdaptiveQR,
-            onShare: showsQR ? { showShareSheet = true } : nil
+            // Sharing the token to its recipient is an unclaimed ecash
+            // receipt's job; a request receipt's QR copies on tap and keeps
+            // Share in its long-press menu (DESIGN.md → QR Tap-to-Copy Rule).
+            onShare: showsQR && transaction.kind == .ecash ? { showShareSheet = true } : nil
         ) {
             Group {
                 if usesAdaptiveQR {
@@ -275,7 +278,8 @@ struct TransactionDetailView: View {
                 // ecash tokens are long and benefit from UR-animated encoding.
                 staticOnly: transaction.kind != .ecash,
                 onCopy: { copyContent(content) },
-                onShare: { showShareSheet = true }
+                onShare: { showShareSheet = true },
+                copyAccessibilityLabel: "Copy \(qrContentAccessibilityLabel)"
             )
             .accessibilityIdentifier("cashu.history.payment-code")
             .frame(width: qrSize, height: qrSize)

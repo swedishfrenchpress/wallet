@@ -1132,6 +1132,7 @@ private fun GeneratedFace(
                 content = result.token,
                 shareSubject = "Cashu token",
                 confirmationMessage = "Copied ecash token",
+                copyLabel = "Copy ecash token",
             )
             GeneratedEcashAmount(presentation = amountPresentation)
             if (claimState == ClaimState.Checking) {

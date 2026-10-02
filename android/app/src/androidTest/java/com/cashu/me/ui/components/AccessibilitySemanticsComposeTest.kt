@@ -104,7 +104,7 @@ class AccessibilitySemanticsComposeTest {
             .assertHasNoClickAction()
         compose.onNodeWithContentDescription("Balance: 42 sat")
             .assertIsDisplayed()
-        compose.onNodeWithContentDescription("QR code. Long press for copy and share options.")
+        compose.onNodeWithContentDescription("Copy QR code")
             .performScrollTo()
             .assertIsDisplayed()
             .assertHasClickAction()

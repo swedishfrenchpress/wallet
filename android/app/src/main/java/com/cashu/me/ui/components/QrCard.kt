@@ -30,19 +30,26 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.cashu.me.Core.WalletHaptic
+import com.cashu.me.Core.rememberWalletHaptics
 import com.cashu.me.Views.Components.QRCodeView
 import com.cashu.me.ui.theme.CashuTheme
 
 /**
  * White-cushioned wrapper around the legacy QRCodeView (which is off-limits per memory).
- * Long-press exposes a Copy / Share dropdown — the Share-At-Top toolbar still owns the
- * primary share affordance per UX_SPEC §0. The 20dp corner comes from the M3 'large'
- * shape token; 16dp padding cushions the QR off the white surface.
+ * A tap copies the content (DESIGN.md → QR Tap-to-Copy Rule; iOS `QRCodeView`
+ * parity); long-press exposes a Copy / Share dropdown. The 20dp corner comes from
+ * the M3 'large' shape token; 16dp padding cushions the QR off the white surface.
+ *
+ * @param copyLabel what a tap copies, read by TalkBack ("Copy Bitcoin address").
+ *   Never a bare "Copy": that names the screen's own Copy button.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -54,12 +61,18 @@ fun QrCard(
     staticOnly: Boolean = false,
     shareSubject: String = "Cashu",
     confirmationMessage: String = "Copied",
+    copyLabel: String = "Copy QR code",
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val haptics = LocalHapticFeedback.current
+    val walletHaptics = rememberWalletHaptics()
     val confirmationToastController = LocalConfirmationToastController.current
     var menuOpen by remember { mutableStateOf(false) }
+    val copy = {
+        clipboard.setText(AnnotatedString(content))
+        confirmationToastController?.show(confirmationMessage)
+    }
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
@@ -67,15 +80,19 @@ fun QrCard(
                 .clip(MaterialTheme.shapes.large)
                 .background(Color.White)
                 .semantics {
-                    contentDescription = "QR code. Long press for copy and share options."
+                    contentDescription = copyLabel
+                    role = Role.Button
                 }
                 .combinedClickable(
-                    onClick = {},
+                    onClick = {
+                        walletHaptics.perform(WalletHaptic.Success)
+                        copy()
+                    },
                     onLongClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         menuOpen = true
                     },
-                    onClickLabel = null,
+                    onClickLabel = "Copy",
                     onLongClickLabel = "Show options",
                 )
                 .padding(CashuTheme.spacing.comfortable)
@@ -98,8 +115,7 @@ fun QrCard(
                 leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
                 onClick = {
                     menuOpen = false
-                    clipboard.setText(AnnotatedString(content))
-                    confirmationToastController?.show(confirmationMessage)
+                    copy()
                 },
             )
             DropdownMenuItem(

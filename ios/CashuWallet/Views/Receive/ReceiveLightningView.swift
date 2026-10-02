@@ -595,7 +595,9 @@ struct ReceiveLightningView: View {
                     showControls: false,
                     staticOnly: true,
                     onCopy: { copyRequest(quote.request) },
-                    onShare: { shareQuoteRequest(quote.request) }
+                    onShare: { shareQuoteRequest(quote.request) },
+                    copyAccessibilityLabel: quote.paymentMethod == .onchain
+                        ? "Copy Bitcoin address" : "Copy payment request"
                 )
                 .frame(width: qrSize, height: qrSize)
                 .padding(16)

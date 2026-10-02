@@ -1231,7 +1231,12 @@ struct QRCodeDetailSheet: View {
                     .font(.title2.weight(.semibold))
                     .multilineTextAlignment(.center)
 
-                QRCodeView(content: content, showControls: false)
+                QRCodeView(
+                    content: content,
+                    showControls: false,
+                    onCopy: copyToClipboard,
+                    copyAccessibilityLabel: "Copy \(title.lowercased())"
+                )
                     .padding()
                     .frame(width: 280, height: 280)
                     .background(Color.white)

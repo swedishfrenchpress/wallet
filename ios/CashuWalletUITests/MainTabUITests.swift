@@ -175,6 +175,23 @@ final class ActivityDetailUITests: XCTestCase {
         add(attachment)
     }
 
+    func testTappingAReceiptQRCopiesIt() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["SHOW_COMPONENT_CATALOG": "activity", "CI_INTEGRATION_TEST": "1"]
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        defer { app.terminate() }
+
+        let row = app.buttons["pending-lightning"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let code = app.buttons["Copy payment request"]
+        XCTAssertTrue(code.waitForExistence(timeout: 5), "The QR is a Copy button for VoiceOver")
+        code.tap()
+        XCTAssertTrue(app.staticTexts["Copied payment request"].waitForExistence(timeout: 5))
+    }
+
     func testReceiptLayoutAndVisiblePaymentCode() {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -214,7 +231,9 @@ final class ActivityDetailUITests: XCTestCase {
             add(attachment)
 
             if id == "pending-lightning" || isRequest {
-                XCTAssertTrue(app.buttons["Share"].isHittable)
+                // Requests published to others keep Share; a request receipt's
+                // QR copies on tap instead (DESIGN.md → QR Tap-to-Copy Rule).
+                XCTAssertEqual(app.buttons["Share"].exists, isRequest)
                 XCTAssertTrue(app.descendants(matching: .any)["cashu.history.payment-code"].firstMatch.exists)
             } else {
                 XCTAssertFalse(app.descendants(matching: .any)["cashu.history.payment-code"].firstMatch.exists)

@@ -423,6 +423,11 @@ struct LightningAddressReceiveContent: View {
         }
     }
 
+    private func copyAddress() {
+        UIPasteboard.general.string = address
+        ConfirmationToast.show("Copied lightning address")
+    }
+
     private var waitingContent: some View {
         GeometryReader { geometry in
             ScrollView {
@@ -430,7 +435,12 @@ struct LightningAddressReceiveContent: View {
                     if preparing {
                         ProgressView("Preparing to receive…")
                     } else {
-                        QRCodeView(content: address, showControls: false)
+                        QRCodeView(
+                            content: address,
+                            showControls: false,
+                            onCopy: copyAddress,
+                            copyAccessibilityLabel: "Copy Lightning address"
+                        )
                             .padding()
                             .frame(width: min(280, geometry.size.width - 48),
                                    height: min(280, geometry.size.width - 48))
@@ -471,10 +481,7 @@ struct LightningAddressReceiveContent: View {
         .safeAreaInset(edge: .bottom) {
             if !preparing {
                 HStack(spacing: 12) {
-                    Button("Copy") {
-                        UIPasteboard.general.string = address
-                        ConfirmationToast.show("Copied lightning address")
-                    }
+                    Button("Copy", action: copyAddress)
                     .flatSheetSecondaryButton()
                     ShareLink(item: address) { Text("Share") }
                         .glassButton(prominent: true)

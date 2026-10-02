@@ -303,7 +303,11 @@ struct TokenDisplayView: View {
                         .fill(Color.white)
                         .frame(width: 280, height: 280)
                     
-                    QRCodeView(content: token)
+                    QRCodeView(
+                        content: token,
+                        onCopy: copyToken,
+                        copyAccessibilityLabel: "Copy ecash token"
+                    )
                         .frame(width: 250, height: 250)
                 }
                 

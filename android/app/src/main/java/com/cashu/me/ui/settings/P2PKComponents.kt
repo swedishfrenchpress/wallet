@@ -380,6 +380,7 @@ fun QrDetailSheet(title: String, content: String, onDismiss: () -> Unit) {
                     staticOnly = true,
                     shareSubject = title,
                     confirmationMessage = "Copied ${title.lowercase()}",
+                    copyLabel = "Copy ${title.lowercase()}",
                 )
                 Spacer(Modifier.height(CashuTheme.spacing.comfortable))
                 Text(

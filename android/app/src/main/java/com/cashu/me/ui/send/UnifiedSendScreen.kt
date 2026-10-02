@@ -1690,7 +1690,13 @@ private fun TopUpQuoteSheet(
                     style = MaterialTheme.typography.headlineSmall.withMonoDigits(),
                 )
             }
-            QrCard(content = liveQuote.request, shareSubject = "Top-up request", staticOnly = true)
+            QrCard(
+                content = liveQuote.request,
+                shareSubject = "Top-up request",
+                staticOnly = true,
+                confirmationMessage = "Copied payment request",
+                copyLabel = "Copy payment request",
+            )
             Text(
                 text = "Pay this invoice to fund the mint and complete the Cashu Request.",
                 style = MaterialTheme.typography.bodyMedium,

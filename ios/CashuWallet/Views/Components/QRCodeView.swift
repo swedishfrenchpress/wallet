@@ -69,12 +69,16 @@ struct QRCodeView: View {
     /// expect to scan as a single static frame. UR-animated QRs only make
     /// sense for our own long Cashu tokens.
     var staticOnly: Bool = false
-    /// VoiceOver Copy action, mirroring the long-press context menu's Copy.
-    /// Leave nil on non-actionable QRs so assistive tech never promises an
-    /// unavailable action.
+    /// Tapping the code copies it (DESIGN.md → QR Tap-to-Copy Rule); it is
+    /// also VoiceOver's default action. Leave nil on non-actionable QRs so
+    /// neither a tap nor assistive tech promises an unavailable action.
     var onCopy: (() -> Void)? = nil
     /// VoiceOver Share action, mirroring the long-press context menu's Share.
     var onShare: (() -> Void)? = nil
+    /// What a tap copies, read by VoiceOver as the button's label
+    /// ("Copy Bitcoin address"). Never a bare "Copy": that names the
+    /// screen's own Copy button.
+    var copyAccessibilityLabel: String? = nil
 
     // Local settings per QR instance
     @State private var speed: QRSpeed = .fast
@@ -87,25 +91,37 @@ struct QRCodeView: View {
 
     @State private var encoder: TokenUrEncoder?
     
+    @ViewBuilder
+    private func qrImage(_ image: UIImage) -> some View {
+        let code = Image(uiImage: image)
+            .interpolation(.none)
+            .resizable()
+            .scaledToFit()
+        if let onCopy {
+            code
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onCopy)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel(copyAccessibilityLabel ?? "Copy QR code")
+                .accessibilityHint("Copies it to the clipboard")
+                .accessibilityActions {
+                    if let onShare {
+                        Button(QRContextAccessibility.shareActionName, action: onShare)
+                    }
+                }
+        } else {
+            code
+                .accessibilityLabel("QR code")
+                .accessibilityHint("Contains scannable payment data")
+        }
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             // QR Code
             Group {
                 if let image = generateQRCode(from: currentQRCodeString) {
-                    Image(uiImage: image)
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFit()
-                        .accessibilityLabel("QR code")
-                        .accessibilityHint("Contains scannable payment data")
-                        .accessibilityActions {
-                            if let onCopy {
-                                Button(QRContextAccessibility.copyActionName, action: onCopy)
-                            }
-                            if let onShare {
-                                Button(QRContextAccessibility.shareActionName, action: onShare)
-                            }
-                        }
+                    qrImage(image)
                 } else {
                     Rectangle()
                         .fill(.tertiary)

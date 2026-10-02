@@ -633,7 +633,8 @@ struct SendView: View {
                         content: token,
                         showControls: false,
                         onCopy: { copyToken(token) },
-                        onShare: { showShareSheet = true }
+                        onShare: { showShareSheet = true },
+                        copyAccessibilityLabel: "Copy ecash token"
                     )
                         .frame(width: 280, height: 280)
                         .padding(16)

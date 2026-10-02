@@ -216,7 +216,8 @@ internal fun LightningAddressReceiveContent(
                                 CircularProgressIndicator()
                                 Text("Preparing to receive…", modifier = Modifier.padding(top = 16.dp))
                             } else QrCard(address, size = qrSize, staticOnly = true,
-                                shareSubject = "Lightning Address", confirmationMessage = "Copied lightning address")
+                                shareSubject = "Lightning Address", confirmationMessage = "Copied lightning address",
+                                copyLabel = "Copy Lightning address")
                             Spacer(Modifier.height(CashuTheme.spacing.comfortable))
                             Text(
                                 text = address,

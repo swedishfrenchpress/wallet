@@ -48,7 +48,7 @@ class ReusableReceiveJourneyTest {
             compose.runOnIdle { store.attachPayment(request.id, "payment-$index", 21) }
             robot.awaitText("Payment Received!").tapText("Done").awaitText("Copy")
             compose.onNodeWithText("Payment Received!").assertDoesNotExist()
-            compose.onNodeWithContentDescription("QR code. Long press for copy and share options.")
+            compose.onNodeWithContentDescription("Copy Cashu request")
                 .performScrollTo().assertIsDisplayed()
             assertEquals(request.encoded, store.request(request.id)?.encoded)
             assertEquals(index, store.request(request.id)?.receivedPayments?.size)

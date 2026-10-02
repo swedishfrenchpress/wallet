@@ -191,6 +191,7 @@ fun TransactionReceiptSheet(
                 shareSubject = title,
                 confirmationMessage =
                     "Copied ${TransactionDisplay.qrLabel(current).replaceFirstChar { it.lowercase() }}",
+                copyLabel = "Copy ${TransactionDisplay.qrLabel(current).replaceFirstChar { it.lowercase() }}",
             )
             current.status == TransactionStatus.Completed -> Icon(
                 imageVector = Icons.Filled.CheckCircle,
@@ -355,7 +356,10 @@ fun TransactionReceiptSheet(
         sheetState = sheetState,
         sheetGesturesEnabled = !dismiss.isDismissing,
         onBackdropVisibilityChanged = onBackdropVisibilityChanged,
-        onShare = if (showsQr && qrContent != null) {
+        // Sharing the token to its recipient is an unclaimed ecash receipt's
+        // job; a request receipt's QR copies on tap and keeps Share in its
+        // long-press menu (DESIGN.md → QR Tap-to-Copy Rule; iOS parity).
+        onShare = if (showsQr && qrContent != null && current.kind == TransactionKind.Ecash) {
             { context.shareText(qrContent, subject = title) }
         } else null,
         modifier = Modifier.testTag(UiTestTags.TransactionReceiptSheet),

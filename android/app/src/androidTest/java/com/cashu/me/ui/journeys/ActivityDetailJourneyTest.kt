@@ -53,9 +53,10 @@ class ActivityDetailJourneyTest {
         compose.onNodeWithText("Status").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Date").performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Close").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Share").assertIsDisplayed()
+        // A request receipt's QR copies on tap; Share lives in its long-press menu.
+        compose.onNodeWithContentDescription("Share").assertDoesNotExist()
         screenshot("activity-pending")
-        compose.onNodeWithContentDescription("QR code. Long press for copy and share options.")
+        compose.onNodeWithContentDescription("Copy payment request")
             .performScrollTo().assertIsDisplayed()
         fixture.fakeGateway!!.addTransaction(tx.copy(status = TransactionStatus.Completed, isUnpaidInvoice = false))
         runBlocking { fixture.container.walletManager.loadTransactions() }
@@ -64,7 +65,7 @@ class ActivityDetailJourneyTest {
         compose.onNodeWithContentDescription("Share").assertDoesNotExist()
         compose.onNodeWithText("Show QR code").assertDoesNotExist()
         compose.onNodeWithText("Hide QR code").assertDoesNotExist()
-        compose.onNodeWithContentDescription("QR code. Long press for copy and share options.").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Copy payment request").assertDoesNotExist()
         robot.pressSystemBack().awaitTag(UiTestTags.HistoryScreen)
     }
 
@@ -89,7 +90,7 @@ class ActivityDetailJourneyTest {
         compose.onNodeWithText("Total received").assertIsDisplayed()
         compose.onNodeWithContentDescription("Close").assertDoesNotExist()
         screenshot("activity-reusable")
-        compose.onNodeWithContentDescription("QR code. Long press for copy and share options.")
+        compose.onNodeWithContentDescription("Copy Cashu request")
             .performScrollTo().assertIsDisplayed()
         robot.pressSystemBack().awaitTag(UiTestTags.HistoryScreen)
     }

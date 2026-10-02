@@ -1512,7 +1512,8 @@ struct CashuTopUpInvoiceSheet: View {
                             showControls: false,
                             staticOnly: true,
                             onCopy: copyInvoice,
-                            onShare: { showShareSheet = true }
+                            onShare: { showShareSheet = true },
+                            copyAccessibilityLabel: "Copy payment request"
                         )
                             .frame(width: 280, height: 280)
                             .padding(16)

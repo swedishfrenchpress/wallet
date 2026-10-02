@@ -37,12 +37,12 @@ class LightningAddressReceiptComposeTest {
         compose.onNodeWithText("Preparing to receive…").assertIsDisplayed()
         compose.onNodeWithText("Copy").assertDoesNotExist()
         compose.onNodeWithText("Share").assertDoesNotExist()
-        compose.onNodeWithContentDescription("QR code. Long press for copy and share options.").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Copy Lightning address").assertDoesNotExist()
         compose.runOnIdle { preparing.value = false }
         compose.onNodeWithText("Preparing to receive…").assertDoesNotExist()
         compose.onNodeWithText("Copy").assertIsDisplayed()
         compose.onNodeWithText("Share").assertIsDisplayed()
-        compose.onNodeWithContentDescription("QR code. Long press for copy and share options.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Copy Lightning address").assertIsDisplayed()
     }
 
     @Test

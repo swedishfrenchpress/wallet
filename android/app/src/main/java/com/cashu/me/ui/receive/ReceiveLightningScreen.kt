@@ -1383,6 +1383,11 @@ private fun DisplayFace(
                     } else {
                         "Copied payment request"
                     },
+                    copyLabel = if (quote.paymentMethod == PaymentMethodKind.Onchain) {
+                        "Copy Bitcoin address"
+                    } else {
+                        "Copy payment request"
+                    },
                 )
             },
         ) {
