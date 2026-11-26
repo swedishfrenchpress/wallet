@@ -1612,7 +1612,7 @@ struct ImportNsecSheet: View {
                         .accessibilityLabel("Clear")
                     }
                 }
-                .animation(.smooth(duration: 0.2), value: nsecText.isEmpty)
+                .animation(CashuMotion.crossFade, value: nsecText.isEmpty)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))

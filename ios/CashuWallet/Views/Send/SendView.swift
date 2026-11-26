@@ -294,7 +294,7 @@ struct SendView: View {
             .padding(.top, 16)
             .padding(.bottom, 16)
         }
-        .animation(.snappy(duration: 0.3), value: lockWithP2PK)
+        .animation(CashuMotion.flip, value: lockWithP2PK)
     }
 
     /// The send amount face's note, said in the conversion line's place.

@@ -81,7 +81,7 @@ struct AddMintFormView: View {
                     .accessibilityIdentifier("mints-add-clear-button")
                 }
             }
-            .animation(.smooth(duration: 0.2), value: mintUrl.isEmpty)
+            .animation(CashuMotion.crossFade, value: mintUrl.isEmpty)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))

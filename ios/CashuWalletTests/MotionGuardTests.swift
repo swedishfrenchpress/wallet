@@ -105,7 +105,7 @@ final class MotionGuardTests: XCTestCase {
     ///
     /// Lower this number. Never raise it.
     func testHandTypedCurvesDoNotSpread() throws {
-        let ceiling = 48
+        let ceiling = 43
         let pattern = #"\.(snappy|smooth|easeInOut|easeOut|easeIn|spring|linear|bouncy|interactiveSpring)\("#
         let counts = try sources()
             .map { (path: $0.path, n: occurrences(of: pattern, in: $0.code)) }

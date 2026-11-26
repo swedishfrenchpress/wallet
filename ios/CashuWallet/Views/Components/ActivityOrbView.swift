@@ -118,7 +118,7 @@ struct NativeEmptyState: View {
             y: reduceMotion || !allowsEntranceMotion ? 0 : (isPresented ? 0 : 8)
         )
         .animation(
-            allowsEntranceMotion ? .spring(response: 0.36, dampingFraction: 0.82) : nil,
+            allowsEntranceMotion ? CashuMotion.reflow : nil,
             value: isPresented
         )
         // Centering frame lives OUTSIDE the .animation scope: on a fresh mount

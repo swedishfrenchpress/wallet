@@ -1784,7 +1784,7 @@ struct OnboardingView: View {
             }
             .opacity(searching ? 1 : 0)
         }
-        .animation(.smooth(duration: 0.2), value: searching)
+        .animation(CashuMotion.crossFade, value: searching)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .liquidGlass(in: Capsule())
