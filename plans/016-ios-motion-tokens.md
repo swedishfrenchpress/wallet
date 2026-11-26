@@ -192,7 +192,9 @@ number only ever goes down.
 
 ## Outcome (2026-11-26, branch `polish/motion-audit`)
 
-Parts A, B and C are in. Differences from the plan as written:
+Parts A and C are proposed upstream. Part B is on the local branch
+`polish/motion-audit` and has not been proposed yet: its five sites still need
+before and after captures. Differences from the plan as written:
 
 - Roles: `turn` and `badge` were not added, because `.smooth(duration: 0.4)` turned
   out to serve four different jobs and `.snappy(duration: 0.28)` only one; both stay
@@ -205,7 +207,8 @@ Parts A, B and C are in. Differences from the plan as written:
   the wrong name for it. The pay-to-key toggle uses `flip`. The three field-hint
   fades use `crossFade`. The screen-entry fade (`.easeOut(duration: 0.22)`) was left
   alone: it is an entrance, and `reducedFade` would have misnamed it.
-- The guard has four checks: hand-typed curves (ceiling 43), no ease-in outside
+- The guard has four checks: hand-typed curves (ceiling 48 without Part B, 43
+  with it), no ease-in outside
   `SharedAxis`, no scale entrance from zero, and no bare `.snappy` at a call site.
 
 Part B's sites have not been compared on screen before and after.

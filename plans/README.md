@@ -26,7 +26,7 @@ platform-native behavior remain the governing constraints.
 | 013 | [Quiet full-tab empty states](013-quiet-full-tab-empty-states.md) | Both | MEDIUM | DONE |
 | 014 | [Payment terminal state coherence](014-payment-terminal-state-coherence.md) | Both | HIGH | DONE |
 | 015 | [Give the busiest iOS taps a short, explicit curve](015-ios-busiest-taps-short-curve.md) | iOS | HIGH | DONE (typing speed still to be picked by eye) |
-| 016 | [Give iOS one home for its motion values](016-ios-motion-tokens.md) | iOS | MEDIUM | DONE |
+| 016 | [Give iOS one home for its motion values](016-ios-motion-tokens.md) | iOS | MEDIUM | DONE (Part B not yet proposed) |
 | 017 | [Name Android's repeated fade specs in CashuMotion](017-android-name-repeated-specs.md) | Android | LOW | DONE |
 | 018 | [Tie iOS confirmation timers to the state they clear](018-ios-confirmation-timers.md) | iOS | LOW | DONE (backup label only; scanner half withdrawn) |
 | 019 | [Bring the motion docs back in line with the code](019-motion-docs-reconcile.md) | Docs | LOW | DONE |
@@ -56,9 +56,10 @@ Plans 015–019 were carried out on 2026-11-26 on the branch
 landed and where it differs from the plan. Still open, most valuable first:
 
 1. **015's pick**: look at the typed amount at 0.25 s against 0.18 s and choose.
-2. **005**, then the rest of **003**: the remaining onboarding work on Android.
-3. **008**: confirm on a device with animations off, then retire.
-4. The two open decisions below.
+2. **016 Part B**: capture its five sites before and after, then propose it.
+3. **005**, then the rest of **003**: the remaining onboarding work on Android.
+4. **008**: confirm on a device with animations off, then retire.
+5. The two open decisions below.
 
 ## Dependencies
 
