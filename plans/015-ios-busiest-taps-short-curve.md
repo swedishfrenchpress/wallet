@@ -145,3 +145,25 @@ All five lines carry `.snappy(duration: 0.25)`; after plan 016 they read
 0.18) for the typed amount. Until that pick is made the typed amount runs at
 0.25, the plan's starting value. To try 0.18, change the one line in
 `AmountLockup.swift` that animates on `parts`.
+
+### Measured on the simulator (2026-11-26, PR #483)
+
+Recorded at 60 fps on the iOS 27.2 simulator, counting how long the screen keeps
+changing after each tap:
+
+| Interaction | Before | After (0.25 s) | Alternative (0.18 s) |
+| --- | --- | --- | --- |
+| Typing a digit | about 400 ms | about 200 ms | about 150 ms |
+| Hiding or showing the balance | about 400 ms | about 220 ms | not tried |
+
+The recording also showed that this plan was wrong about the home balance. The
+hidden and visible balances swap inside the button's label, so the button's own
+press animation was timing the swap, and changing the animation in
+`cycleHomeBalance` made no difference to it: before and after were identical frame
+for frame. Naming the animation on the swap itself (`.animation(…, value: hidden)`
+on the `ZStack` inside the label) fixed it. That line is part of PR #483 and of
+this branch. The animation in `cycleHomeBalance` still times the fiat line under
+the balance.
+
+Not captured: the bitcoin and fiat flip on amount screens, the unit dots, and the
+backup label.
