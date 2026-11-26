@@ -332,7 +332,7 @@ struct MainWalletView: View {
                     next: next,
                     phrase: HomeBalanceCycle.actionPhrase(for: next, fiatText: nil, unitName: currency.code)
                 )
-                .animation(.snappy, value: amount)
+                .animation(CashuMotion.valueRoll, value: amount)
                 // Same reserved status slot as sat (no fiat conversion for non-sat).
                 Color.clear.frame(height: statusLineHeight)
             }
@@ -388,7 +388,7 @@ struct MainWalletView: View {
     /// drops out doesn't.
     private func cycleHomeBalance(to next: HomeBalanceStep) {
         HapticFeedback.selection()
-        withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .snappy(duration: 0.25)) {
+        withAnimation(reduceMotion ? CashuMotion.reducedFade : CashuMotion.flip) {
             settings.applyHomeBalanceStep(next)
         }
     }
@@ -408,7 +408,7 @@ struct MainWalletView: View {
                     )
             }
         }
-        .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: selected)
+        .animation(reduceMotion ? nil : CashuMotion.flip, value: selected)
         .accessibilityHidden(true)
     }
 
@@ -433,7 +433,7 @@ struct MainWalletView: View {
                     .font(.body)
                     .monospacedDigit()
                     .contentTransition(reduceMotion ? .opacity : .numericText(value: secondaryValue ?? 0))
-                    .animation(reduceMotion ? .easeOut(duration: 0.2) : .snappy, value: secondaryValue)
+                    .animation(reduceMotion ? CashuMotion.reducedFade : CashuMotion.valueRoll, value: secondaryValue)
                     .foregroundStyle(.secondary)
                     .transition(.opacity)
             }
@@ -480,7 +480,7 @@ struct MainWalletView: View {
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
         // The system list insertion: rows below glide down, the new row fades
         // in where it sits. No bounce.
-        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .smooth(duration: 0.4)) {
+        withAnimation(reduceMotion ? CashuMotion.crossFade : .smooth(duration: 0.4)) {
             arrival.present(beat)
         }
         // The "+N" sits under the sat balance only; a non-sat receive
@@ -494,8 +494,8 @@ struct MainWalletView: View {
             receivedFeedback.show(
                 amount: sats,
                 animation: reduceMotion
-                    ? .easeInOut(duration: 0.2)
-                    : .spring(response: 0.5, dampingFraction: 0.7)
+                    ? CashuMotion.crossFade
+                    : CashuMotion.celebration
             )
         }
         confirmReceipts(beat.confirmations)
