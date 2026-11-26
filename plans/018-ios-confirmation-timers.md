@@ -1,6 +1,6 @@
 # 018 — Tie iOS confirmation timers to the state they clear
 
-- **Status**: TODO
+- **Status**: DONE (backup label only; scanner half withdrawn)
 - **Commit**: e61dcb3c (`main`; the audit ran on a branch at 18ba3c89, one PR behind)
 - **Severity**: LOW
 - **Category**: Interruptibility
@@ -156,3 +156,17 @@ in `.onDisappear`; both `asyncAfter` bodies move into it behind
   - Scanner: trigger a rejection and close the scanner within 1 s; reopen it. It opens clean, with no message and scanning active.
   - Reduce Motion on: the label still fades (opacity only).
 - **Done when**: no `asyncAfter` remains in the two functions, and the three checks above pass.
+
+## Outcome (2026-11-26, branch `polish/motion-audit`)
+
+The backup confirmation is fixed as planned: one cancellable task, cancelled on
+disappear, and the label fades.
+
+The scanner half was **withdrawn, because its premise was wrong**. The scanner
+stops scanning while a message is on screen (`processCompleteContent` sets
+`scannerModel.isScanning = false`, and `handleScan` returns early until `reset()`
+runs), so a second code cannot be read inside the two-second window and the
+overlap described under Problem cannot happen. The two `asyncAfter` calls there
+are left as they are.
+
+The label fade has not been looked at on a device.

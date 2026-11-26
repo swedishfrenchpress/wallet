@@ -1,6 +1,6 @@
 # 019 — Bring the motion docs back in line with the code
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: e61dcb3c (`main`; the audit ran on a branch at 18ba3c89, one PR behind)
 - **Severity**: LOW
 - **Category**: Cohesion & tokens (documentation)
@@ -83,3 +83,10 @@ statements in it no longer describe the app.
 - **Mechanical**: `grep -n "number-pad keys spring-scale" docs/android/DESIGN-ANDROID.md` returns nothing.
 - **Feel check**: not applicable.
 - **Done when**: each of the three statements can be checked against the file and line it cites.
+
+## Outcome (2026-11-26, branch `polish/motion-audit`)
+
+Both docs carry dated corrections for the three statements, plus a note on where
+the motion values now live on each platform. The original sentences were kept and
+corrected by a dated note beside them, as the docs do elsewhere, so the grep under
+Verification still finds the old wording; read the note that follows it.

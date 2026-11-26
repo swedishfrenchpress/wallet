@@ -1,6 +1,6 @@
 # 015 — Give the busiest iOS taps a short, explicit curve
 
-- **Status**: TODO
+- **Status**: DONE (typing speed still to be picked by eye)
 - **Commit**: e61dcb3c (`main`; the audit ran on a branch at 18ba3c89, one PR behind)
 - **Severity**: HIGH
 - **Category**: Easing & duration, on high-frequency surfaces
@@ -137,3 +137,11 @@ way the Transfer glyph turn was picked.
   - Reduce Motion on (Settings > Accessibility > Motion): every one of the above is a plain 0.2 s fade, unchanged from today.
   - Produce one clip with three columns for the typed amount: today (0.5), 0.25, 0.18. That clip is the deliverable for the pick.
 - **Done when**: the five lines carry an explicit duration, the build is green, and the typed-amount value has been picked from the side-by-side.
+
+## Outcome (2026-11-26, branch `polish/motion-audit`)
+
+All five lines carry `.snappy(duration: 0.25)`; after plan 016 they read
+`CashuMotion.flip`. The app builds. Not done: the three-column clip (0.5, 0.25,
+0.18) for the typed amount. Until that pick is made the typed amount runs at
+0.25, the plan's starting value. To try 0.18, change the one line in
+`AmountLockup.swift` that animates on `parts`.

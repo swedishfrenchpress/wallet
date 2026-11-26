@@ -1,6 +1,6 @@
 # 017 — Name Android's repeated fade specs in CashuMotion
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: e61dcb3c (`main`; the audit ran on a branch at 18ba3c89, one PR behind)
 - **Severity**: LOW
 - **Category**: Cohesion & tokens
@@ -123,3 +123,15 @@ enter = fadeIn(quietFadeSpec()), exit = fadeOut(quietFadeSpec())   // AnimatedVi
   - `grep -rn "spring(stiffness = Spring.StiffnessMedium)" app/src/main/java --include='*.kt'` matches only `ui/theme/Motion.kt` and `ui/components/RollingAmountText.kt`.
 - **Feel check**: none expected. Spot-check on a device or the API 29 emulator: type an amount in Send, flip sats ↔ fiat, pay a test invoice and watch the status screen arrive. Each must look the same as a build of `main`.
 - **Done when**: the grep above is clean, screenshot tests pass untouched, and the 220/280 sites are listed for a follow-up.
+
+## Outcome (2026-11-26, branch `polish/motion-audit`)
+
+In as planned, with one naming change: the spring is `quietSpec()` rather than
+`quietFadeSpec()`, because sixteen of its uses are not fades (a control dimming, a
+scale settling). All 53 literals are replaced, across 22 files. The nine exact
+status pairs are `statusSwap()`. `tween(220)` and `tween(280)` remain as literals:
+`ui/send/SendEcashScreen.kt` (claim check row), `ui/settings/RestoreWalletScreen.kt`
+(step swap), and the others the grep in this plan lists.
+
+Compiles; 1018 unit tests pass; `validateDebugScreenshotTest` passes with no
+baseline changed.

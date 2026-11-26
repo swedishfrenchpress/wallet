@@ -25,11 +25,11 @@ platform-native behavior remain the governing constraints.
 | 012 | [Reduce Motion press feedback](012-reduced-motion-press-feedback.md) | Both | HIGH | DONE |
 | 013 | [Quiet full-tab empty states](013-quiet-full-tab-empty-states.md) | Both | MEDIUM | DONE |
 | 014 | [Payment terminal state coherence](014-payment-terminal-state-coherence.md) | Both | HIGH | DONE |
-| 015 | [Give the busiest iOS taps a short, explicit curve](015-ios-busiest-taps-short-curve.md) | iOS | HIGH | TODO |
-| 016 | [Give iOS one home for its motion values](016-ios-motion-tokens.md) | iOS | MEDIUM | TODO |
-| 017 | [Name Android's repeated fade specs in CashuMotion](017-android-name-repeated-specs.md) | Android | LOW | TODO |
-| 018 | [Tie iOS confirmation timers to the state they clear](018-ios-confirmation-timers.md) | iOS | LOW | TODO |
-| 019 | [Bring the motion docs back in line with the code](019-motion-docs-reconcile.md) | Docs | LOW | TODO |
+| 015 | [Give the busiest iOS taps a short, explicit curve](015-ios-busiest-taps-short-curve.md) | iOS | HIGH | DONE (typing speed still to be picked by eye) |
+| 016 | [Give iOS one home for its motion values](016-ios-motion-tokens.md) | iOS | MEDIUM | DONE |
+| 017 | [Name Android's repeated fade specs in CashuMotion](017-android-name-repeated-specs.md) | Android | LOW | DONE |
+| 018 | [Tie iOS confirmation timers to the state they clear](018-ios-confirmation-timers.md) | iOS | LOW | DONE (backup label only; scanner half withdrawn) |
+| 019 | [Bring the motion docs back in line with the code](019-motion-docs-reconcile.md) | Docs | LOW | DONE |
 
 ### Status notes for 001–011 (reconciled 2026-11-26 against the branch at `18ba3c89`)
 
@@ -51,22 +51,17 @@ line-by-line read of every step. Paths are under
 
 ## Recommended execution order
 
-Open work, most valuable first:
+Plans 015–019 were carried out on 2026-11-26 on the branch
+`polish/motion-audit`; each plan ends with an Outcome section saying what
+landed and where it differs from the plan. Still open, most valuable first:
 
-1. **015**: five one-line edits on the app's most-repeated taps, plus a side-by-side for the pick. Do it first; it is the only change here a user will feel every day.
-2. **016 Part A**: names iOS's motion values without changing any. Land it right after 015 so 015's lines move onto a name once.
-3. **018**: small, independent iOS fix.
-4. **017**: Android twin of 016's naming, no visible change.
-5. **016 Part B**: folds the look-alike values; needs captures.
-6. **005**, then the rest of **003**: the remaining onboarding work on Android.
-7. **019**: docs, after 016 and 017 so it can point at the names.
-8. **008**: confirm on a device, then retire.
+1. **015's pick**: look at the typed amount at 0.25 s against 0.18 s and choose.
+2. **005**, then the rest of **003**: the remaining onboarding work on Android.
+3. **008**: confirm on a device with animations off, then retire.
+4. The two open decisions below.
 
 ## Dependencies
 
-- 016 Part A should follow 015 (they touch the same five lines).
-- 016 Part B depends on 016 Part A.
-- 019 reads better after 016 and 017 but does not depend on them.
 - 005 and 011 both edit `RestoreWalletFlow.kt`; coordinate if run in parallel.
 - 003's remaining stages depend on the `riseIn` wiring from 002 (done).
 

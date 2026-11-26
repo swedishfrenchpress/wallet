@@ -1,6 +1,6 @@
 # 016 — Give iOS one home for its motion values
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: e61dcb3c (`main`; the audit ran on a branch at 18ba3c89, one PR behind)
 - **Severity**: MEDIUM
 - **Category**: Cohesion & tokens
@@ -189,3 +189,23 @@ number only ever goes down.
   - Part A: none expected. Spot-check three flows in the simulator (Send to review and back, Receive invoice appearing, a copy toast) against a build of `main`; they must look identical.
   - Part B: record each of the four sites before and after at 60 fps and play at 25%. The empty-state orb should settle without a visible second bounce; the settings/add-mint field hints should fade without lagging the keyboard.
 - **Done when**: the guard test is green with its frozen count, Part A is a zero-visual-change diff, and Part B has captures attached.
+
+## Outcome (2026-11-26, branch `polish/motion-audit`)
+
+Parts A, B and C are in. Differences from the plan as written:
+
+- Roles: `turn` and `badge` were not added, because `.smooth(duration: 0.4)` turned
+  out to serve four different jobs and `.snappy(duration: 0.28)` only one; both stay
+  as literals. `settle` was added: about thirty call sites used a bare `.snappy` for
+  an error line, banner or restore row arriving, which is not a value roll.
+- Part A is one commit, not one per value. The mapping is mechanical and can be
+  checked by grep; the guard test passes.
+- Part B: the empty-state orb now uses `CashuMotion.reflow` (the documented
+  entrance curve, no overshoot) instead of the toast spring, which would have been
+  the wrong name for it. The pay-to-key toggle uses `flip`. The three field-hint
+  fades use `crossFade`. The screen-entry fade (`.easeOut(duration: 0.22)`) was left
+  alone: it is an entrance, and `reducedFade` would have misnamed it.
+- The guard has four checks: hand-typed curves (ceiling 43), no ease-in outside
+  `SharedAxis`, no scale entrance from zero, and no bare `.snappy` at a call site.
+
+Part B's sites have not been compared on screen before and after.
