@@ -315,8 +315,8 @@ final class ActivityDetailUITests: XCTestCase {
         let height = row.frame.height
         for expected in [
             "Waiting for deposit",
-            "2,317 sats, in mempool",
-            "2,317 sats, 1 confirmation",
+            "2,317 sats, pending in mempool",
+            "2,317 sats, pending, 1 confirmation",
             "300,000 sats, 45 confirmations",
             "Adding 300,000 sats to wallet",
             "300,000 sats, retrying",
@@ -394,7 +394,7 @@ final class ActivityDetailUITests: XCTestCase {
         let mempool = app.buttons["mempool-bitcoin"]
         XCTAssertTrue(mempool.waitForExistence(timeout: 10))
         mempool.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        XCTAssertTrue(statusRow("In mempool").waitForExistence(timeout: 5))
+        XCTAssertTrue(statusRow("Pending · in mempool").waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["cashu.history.payment-code"].firstMatch.exists,
                        "A funded address is not handed out again")
         XCTAssertFalse(app.buttons["Share"].exists)

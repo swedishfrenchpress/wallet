@@ -121,11 +121,11 @@ final class TransactionServiceTests: XCTestCase {
         observation = OnchainPaymentObservation(txid: "txid", amount: 42, confirmed: false, confirmations: nil)
         let pending = await rows()
         XCTAssertEqual(pending.first?.isUnfundedAddress, false)
-        XCTAssertEqual(pending.first?.displayTitle, "Bitcoin received")
+        XCTAssertEqual(pending.first?.displayTitle, "Receiving Bitcoin")
         XCTAssertEqual(pending.first?.amount, 42)
         XCTAssertEqual(pending.first?.status, .pending)
         XCTAssertEqual(pending.first?.preimage, "txid")
-        XCTAssertEqual(pending.first?.statusNote, "In mempool")
+        XCTAssertEqual(pending.first?.statusNote, "Pending · in mempool")
         XCTAssertEqual(HomeActivity.recentTransactions(from: pending, limit: 5).map(\.id), ["deposit"])
         service.transactions = pending
         let local = await rows(remote: false)
@@ -210,7 +210,7 @@ final class TransactionServiceTests: XCTestCase {
             observation = OnchainPaymentObservation(txid: "first-txid", amount: 42, confirmed: false, confirmations: nil)
             let detected = await rows(try reopenedService(), remote: true)
             XCTAssertEqual(detected.first?.amount, 42)
-            XCTAssertEqual(detected.first?.statusNote, "In mempool")
+            XCTAssertEqual(detected.first?.statusNote, "Pending · in mempool")
 
             observation = nil
             for remote in [false, true] {
@@ -223,7 +223,7 @@ final class TransactionServiceTests: XCTestCase {
                 XCTAssertEqual(restored.first?.amount, 42)
                 XCTAssertEqual(restored.first?.preimage, "first-txid")
                 XCTAssertEqual(restored.first?.status, .pending)
-                XCTAssertEqual(restored.first?.statusNote, "In mempool", "The stored sighting outlives the explorer")
+                XCTAssertEqual(restored.first?.statusNote, "Pending · in mempool", "The stored sighting outlives the explorer")
                 XCTAssertEqual(HomeActivity.recentTransactions(from: restored, limit: 5).map(\.id), [quote.id])
             }
 
@@ -231,7 +231,7 @@ final class TransactionServiceTests: XCTestCase {
             let refreshed = await rows(try reopenedService(), remote: true)
             XCTAssertEqual(refreshed.first?.amount, 64)
             XCTAssertEqual(refreshed.first?.status, .pending, "Explorer confirmation does not prove ecash issuance")
-            XCTAssertEqual(refreshed.first?.statusNote, "2 confirmations")
+            XCTAssertEqual(refreshed.first?.statusNote, "Pending · 2 confirmations")
             observation = nil
             let latest = await rows(try reopenedService(), remote: false)
             XCTAssertEqual(latest.first?.amount, 64)
@@ -829,11 +829,11 @@ final class OnchainDepositStatusTests: XCTestCase {
     func testSheetValuesCarryTheAmountAndHistoryTextNeverDoes() {
         XCTAssertEqual(OnchainDepositStatus.waiting.sheetValue(amount: sats).text, "Waiting for deposit")
         XCTAssertEqual(OnchainDepositStatus.expired.sheetValue(amount: sats).text, "Expired")
-        XCTAssertEqual(OnchainDepositStatus.inMempool(amount: 2_317).sheetValue(amount: sats).text, "2,317 sat · in mempool")
+        XCTAssertEqual(OnchainDepositStatus.inMempool(amount: 2_317).sheetValue(amount: sats).text, "2,317 sat · Pending in mempool")
         XCTAssertEqual(OnchainDepositStatus.confirming(amount: 2_317, confirmations: 1).sheetValue(amount: sats).text,
-                       "2,317 sat · 1 confirmation")
+                       "2,317 sat · Pending · 1 confirmation")
         XCTAssertEqual(OnchainDepositStatus.confirming(amount: 2_317, confirmations: 2).sheetValue(amount: sats).text,
-                       "2,317 sat · 2 confirmations")
+                       "2,317 sat · Pending · 2 confirmations")
         XCTAssertEqual(OnchainDepositStatus.adding(amount: 2_317).sheetValue(amount: sats).text, "Adding 2,317 sat to wallet…")
         XCTAssertEqual(OnchainDepositStatus.retrying(amount: 2_317, needsAttention: false).sheetValue(amount: sats).text,
                        "2,317 sat · retrying")
@@ -846,12 +846,12 @@ final class OnchainDepositStatusTests: XCTestCase {
         let symbol = OnchainDepositStatus.inMempool(amount: 2_317).sheetValue {
             AmountFormatter.satsParts($0, useBitcoinSymbol: true)
         }
-        XCTAssertEqual(symbol.text, "₿2,317 · in mempool")
-        XCTAssertEqual(symbol.spoken, "2,317 sats, in mempool", "VoiceOver never reads a bare ₿")
+        XCTAssertEqual(symbol.text, "₿2,317 · Pending in mempool")
+        XCTAssertEqual(symbol.spoken, "2,317 sats, pending in mempool", "VoiceOver never reads a bare ₿")
 
         XCTAssertEqual(OnchainDepositStatus.waiting.historyText, "Waiting for deposit")
-        XCTAssertEqual(OnchainDepositStatus.inMempool(amount: 2_317).historyText, "In mempool")
-        XCTAssertEqual(OnchainDepositStatus.confirming(amount: 2_317, confirmations: 1).historyText, "1 confirmation")
+        XCTAssertEqual(OnchainDepositStatus.inMempool(amount: 2_317).historyText, "Pending · in mempool")
+        XCTAssertEqual(OnchainDepositStatus.confirming(amount: 2_317, confirmations: 1).historyText, "Pending · 1 confirmation")
         XCTAssertEqual(OnchainDepositStatus.adding(amount: 2_317).historyText, "Adding to wallet…")
         XCTAssertEqual(OnchainDepositStatus.retrying(amount: 2_317, needsAttention: false).historyText, "Retrying")
         XCTAssertEqual(OnchainDepositStatus.retrying(amount: 2_317, needsAttention: true).historyText, "Not added yet")
