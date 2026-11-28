@@ -262,7 +262,7 @@ class PendingMintQuoteTransactionsTest {
             previousTransactions = listOf(previous),
         ).single().statusNote
         assertEquals("2 confirmations", offline(pending.copy(statusNote = "2 confirmations")))
-        assertEquals("In mempool", offline(pending.copy(statusNote = "Payment detected on-chain")))
+        assertEquals("Pending · in mempool", offline(pending.copy(statusNote = "Payment detected on-chain")))
         // A credited deposit whose ecash keeps failing reads Retrying.
         val retrying = pendingMintQuoteTransactions(
             quotes = listOf(deposit.copy(amountPaid = 42)), trackedMintUrls = setOf(MintUrl),

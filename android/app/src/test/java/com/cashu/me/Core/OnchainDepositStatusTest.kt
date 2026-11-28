@@ -73,7 +73,7 @@ class OnchainDepositStatusTest {
 
         assertEquals("Waiting for deposit", OnchainDepositStatus.Waiting.historyText)
         assertEquals("Pending · in mempool", OnchainDepositStatus.InMempool(2_317).historyText)
-        assertEquals("1 confirmation", OnchainDepositStatus.Confirming(2_317, 1).historyText)
+        assertEquals("Pending · 1 confirmation", OnchainDepositStatus.Confirming(2_317, 1).historyText)
         assertEquals("Adding to wallet…", OnchainDepositStatus.Adding(2_317).historyText)
         assertEquals("Retrying", OnchainDepositStatus.Retrying(2_317, false).historyText)
         assertEquals("Not added yet", OnchainDepositStatus.Retrying(2_317, true).historyText)
